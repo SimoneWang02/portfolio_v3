@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { EXPERIENCE } from "../content.js";
+import { useReveal } from "../hooks/useReveal.js";
 
 const external = { target: "_blank", rel: "noopener noreferrer" };
 
@@ -8,21 +9,6 @@ const ICONS = {
   school: <><path d="M22 10 12 5 2 10l10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /><path d="M22 10v6" /></>,
   work: <><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></>,
 };
-
-// fade/slide each block in the first time it scrolls into view (CSS skips the motion for reduced-motion users)
-function useReveal() {
-  const root = useRef(null);
-  useEffect(() => {
-    const items = root.current.querySelectorAll(".reveal");
-    if (!("IntersectionObserver" in window)) { items.forEach((el) => el.classList.add("in")); return; }
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }, { rootMargin: "0px 0px -10% 0px" });
-    items.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, []);
-  return root;
-}
 
 // collapsed: the headline facts + a one-line summary; "Show details" opens the full résumé points
 function Project({ p }) {

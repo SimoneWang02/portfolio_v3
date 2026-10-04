@@ -60,7 +60,7 @@ export const EXPERIENCE = [
       {
         name: "DuePalleggi",
         url: "https://www.duepalleggi.it",
-        about: "Sports Facility Reservation Platform (Web + Mobile)",
+        about: "Sports Facility Reservation Platform",
         dates: "Oct 2023 – Jan 2025",
         summary: "Shipped a major release for a platform with 5.5M+ bookings and 125K+ users; it became my B.S. capstone thesis.",
         tags: ["React Native", "Laravel"],
@@ -102,5 +102,61 @@ export const EXPERIENCE = [
       "Linear Algebra", "Mathematical Analysis", "Numerical Calculus", "Integer Linear Optimization",
       "Statistics and Elements of Probability", "Physics",
     ],
+  },
+];
+
+// Projects page cards. Placeholders for now - swap in the real ones.
+// image: a path under public/ (e.g. "/projects/foo.jpg", ~16:9); leave it null and the card shows a tinted placeholder.
+// repo / url are optional; each one that's set becomes a link on the card.
+export const PROJECTS = [
+  {
+    name: "Project One",
+    about: "One-line pitch of what it is",
+    year: "2026",
+    image: null,
+    summary: "Two sentences on the problem, what you built, and the result. Keep it to what a recruiter skims in five seconds.",
+    tags: ["React", "Node.js"],
+    repo: "",
+    url: "",
+  },
+  {
+    name: "Project Two",
+    about: "One-line pitch of what it is",
+    year: "2026",
+    image: null,
+    summary: "Two sentences on the problem, what you built, and the result. Keep it to what a recruiter skims in five seconds.",
+    tags: ["Python", "FastAPI"],
+    repo: "",
+    url: "",
+  },
+  {
+    name: "Project Three",
+    about: "One-line pitch of what it is",
+    year: "2025",
+    image: null,
+    summary: "Two sentences on the problem, what you built, and the result. Keep it to what a recruiter skims in five seconds.",
+    tags: ["Three.js", "WebGL"],
+    repo: "",
+    url: "",
+  },
+  {
+    name: "Project Four",
+    about: "One-line pitch of what it is",
+    year: "2025",
+    image: null,
+    summary: "Two sentences on the problem, what you built, and the result. Keep it to what a recruiter skims in five seconds.",
+    tags: ["Laravel", "MySQL"],
+    repo: "",
+    url: "",
+  },
+  {
+    name: "Project Five",
+    about: "One-line pitch of what it is",
+    year: "2024",
+    image: null,
+    summary: "Two sentences on the problem, what you built, and the result. Keep it to what a recruiter skims in five seconds.",
+    tags: ["React Native"],
+    repo: "",
+    url: "",
   },
 ];
