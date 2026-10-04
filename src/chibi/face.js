@@ -31,6 +31,13 @@ const FACE_GLSL = `
     return max(fringe, temple) * front;
   }
   float frontGate(float z) { return smoothstep(0.62, 0.72, z); }   // face surface is z > ~0.8
+  // front of the head, chin to above the hairline. Tripo's normal map bakes a sharp bevel around every
+  // painted feature there (brows, lash lines, hairline) that catches the light as a pale halo, so the
+  // normal map is dropped in this region; the mesh itself carries the shape of the brows and fringe.
+  float faceRegion(vec3 f) {
+    return frontGate(f.z) * smoothstep(0.56, 0.60, f.y) * (1.0 - smoothstep(0.86, 0.90, f.y))
+         * (1.0 - smoothstep(0.25, 0.29, abs(f.x - 0.5)));
+  }
   // lip seam, least-squares fit to the darkest row of the painted smile (rms error 0.0004):
   // slightly tilted, lowest just right of center
   float mouthLine(float x) { float d = x - 0.5; return MOUTH.y + 0.0071 * d + 1.49 * d * d; }
@@ -97,11 +104,12 @@ export function addFace(material, faceU) {
             diffuseColor.rgb = mix(diffuseColor.rgb, cavity, inside);
           }
         }`)
-      // under a closed lid, drop the normal map so the eye's sculpted rim doesn't show through the skin
+      // drop the normal map on the face (see faceRegion) and under a closed lid, so the eye's sculpted
+      // rim doesn't show through the skin
       .replace("#include <normal_fragment_maps>", `
         vec3 geoNormal = normal;
         #include <normal_fragment_maps>
-        normal = normalize(mix(normal, geoNormal, lidMask.x));`);
+        normal = normalize(mix(normal, geoNormal, max(faceRegion(vFace), lidMask.x)));`);
   };
   material.needsUpdate = true;
 }
