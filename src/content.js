@@ -105,11 +105,28 @@ export const EXPERIENCE = [
   },
 ];
 
-// Projects page cards: independent work, from the résumé (public/Simone_Resume.pdf).
+// Projects page cards: independent work, newest first (by start date).
 // image: a path under public/ (e.g. "/projects/foo.jpg", ~16:9); leave it null and the card shows a tinted placeholder.
 // summary shows on the card; points open under "Show details" (add as many as you like).
 // repo / url are optional; each one that's set becomes a link on the card.
 export const PROJECTS = [
+  {
+    name: "mini-Simone",
+    about: "Interactive 3D Portfolio with an AI Chat Companion",
+    dates: "Oct 2026",
+    image: null,
+    summary: "This site: a rigged 3D chibi that waves, high-fives, and lip-syncs to an AI chat as its answers stream in.",
+    points: [
+      "Rigged a 3D character (Tripo mesh + Mixamo skeleton) in Three.js and optimized it to 1.2 MB with glTF-Transform (meshopt geometry, WebP textures).",
+      "Animated it procedurally in code rather than with baked clips: breathing, hops with squash & stretch, a hello wave, and a high-five that searches arm poses so the palm lands on the visitor's click.",
+      "Wrote a custom face shader injected into the model's material for blinking eyelids and a talking mouth, and dropped the normal map across the face to remove lighting halos around painted features.",
+      "Built the chat on a small Python server that streams DeepSeek replies and keeps the API key off the client; the chibi's moods (thinking, talking, nodding on punctuation) follow the stream as it arrives.",
+      "Kept the chibi and the conversation alive across pages in a React Router SPA, shrinking the character into an animated corner companion away from the home page.",
+    ],
+    tags: ["React", "Three.js", "GLSL", "Python"],
+    repo: "https://github.com/SimoneWang02/portfolio_v3",
+    url: "",
+  },
   {
     name: "Yocigaci",
     about: "Trading Card Game E-Commerce Platform",
@@ -154,22 +171,5 @@ export const PROJECTS = [
     tags: ["React", "Laravel", "AWS EC2"],
     repo: "",
     url: "https://awaqe.com",
-  },
-  {
-    name: "mini-Simone",
-    about: "Interactive 3D Portfolio with an AI Chat Companion",
-    dates: "Oct 2026",
-    image: null,
-    summary: "This site: a rigged 3D chibi that waves, high-fives, and lip-syncs to an AI chat as its answers stream in.",
-    points: [
-      "Rigged a 3D character (Tripo mesh + Mixamo skeleton) in Three.js and optimized it to 1.2 MB with glTF-Transform (meshopt geometry, WebP textures).",
-      "Animated it procedurally in code rather than with baked clips: breathing, hops with squash & stretch, a hello wave, and a high-five that searches arm poses so the palm lands on the visitor's click.",
-      "Wrote a custom face shader injected into the model's material for blinking eyelids and a talking mouth, and dropped the normal map across the face to remove lighting halos around painted features.",
-      "Built the chat on a small Python server that streams DeepSeek replies and keeps the API key off the client; the chibi's moods (thinking, talking, nodding on punctuation) follow the stream as it arrives.",
-      "Kept the chibi and the conversation alive across pages in a React Router SPA, shrinking the character into an animated corner companion away from the home page.",
-    ],
-    tags: ["React", "Three.js", "GLSL", "Python"],
-    repo: "https://github.com/SimoneWang02/portfolio_v3",
-    url: "",
   },
 ];
