@@ -347,6 +347,11 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 /* ---------- projects: photo cards ---------- */
 .projects p { margin: 0; font-size: 1rem; line-height: 1.5; } /* undo the stub-page lede size */
 .projects .tl-dates { color: var(--accent2); font-weight: 600; font-size: .9rem; }
+.projects .pj-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.pj-type {
+  padding: 1px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--accent); background: rgba(59,130,246,.1);
+}
 .projects .tl-summary { margin-top: 10px; color: #374151; }
 .projects { max-width: 1000px; } /* wider than the other pages so the photos get room */
 .pj-grid { display: flex; flex-direction: column; gap: 28px; }

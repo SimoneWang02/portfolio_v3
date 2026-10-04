@@ -107,11 +107,13 @@ export const EXPERIENCE = [
 
 // Projects page cards: independent work, newest first (by start date).
 // image: a path under public/ (e.g. "/projects/foo.jpg", ~16:9); leave it null and the card shows a tinted placeholder.
+// type: Freelance / Startup / Personal, shown as a pill by the dates.
 // summary shows on the card; points open under "Show details" (add as many as you like).
 // repo / url are optional; each one that's set becomes a link on the card.
 export const PROJECTS = [
   {
     name: "mini-Simone",
+    type: "Personal",
     about: "Interactive 3D Portfolio with an AI Chat Companion",
     dates: "Oct 2026",
     image: null,
@@ -129,6 +131,7 @@ export const PROJECTS = [
   },
   {
     name: "Yocigaci",
+    type: "Freelance",
     about: "Trading Card Game E-Commerce Platform",
     dates: "Jun 2026 – Jul 2026",
     image: null,
@@ -145,6 +148,7 @@ export const PROJECTS = [
   },
   {
     name: "MeeTea&Poke",
+    type: "Freelance",
     about: "Click & Collect Ordering Platform",
     dates: "May 2026",
     image: null,
@@ -160,6 +164,7 @@ export const PROJECTS = [
   },
   {
     name: "Awaqe Academy",
+    type: "Startup",
     about: "Web Platform for Students and Mentors",
     dates: "Feb 2026 – Present",
     image: null,

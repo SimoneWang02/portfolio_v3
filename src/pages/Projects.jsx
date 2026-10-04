@@ -18,7 +18,7 @@ function ProjectCard({ p }) {
           : <span className="pj-placeholder" aria-hidden="true">{p.name[0]}</span>}
       </div>
       <div className="pj-body">
-        <p className="tl-dates">{p.dates}</p>
+        <p className="pj-meta"><span className="tl-dates">{p.dates}</span><span className="pj-type">{p.type}</span></p>
         <h2>{p.name}</h2>
         <p className="tl-about">{p.about}</p>
         <p className="tl-summary">{p.summary}</p>
