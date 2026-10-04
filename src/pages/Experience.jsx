@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { EXPERIENCE } from "../content.js";
 import { useReveal } from "../hooks/useReveal.js";
+import { DetailsPanel, DetailsToggle } from "../components/Details.jsx";
 
 const external = { target: "_blank", rel: "noopener noreferrer" };
 
@@ -23,17 +24,8 @@ function Project({ p }) {
         {p.tags.map((t) => <li key={t}>{t}</li>)}
       </ul>
       <p className="tl-summary">{p.summary}</p>
-      <button type="button" className="tl-toggle" aria-expanded={open} aria-controls={id}
-              onClick={() => setOpen((x) => !x)}>
-        {open ? "Hide details" : "Show details"}
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {/* stays mounted so the height can animate; inert keeps it out of tab order while closed */}
-      <div className={`tl-details${open ? " open" : ""}`} id={id} inert={!open}>
-        <ul className="tl-points">
-          {p.points.map((pt) => <li key={pt}>{pt}</li>)}
-        </ul>
-      </div>
+      <DetailsToggle open={open} onToggle={() => setOpen((x) => !x)} controls={id} />
+      <DetailsPanel open={open} id={id} points={p.points} />
     </article>
   );
 }

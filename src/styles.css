@@ -338,9 +338,9 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 /* 0fr -> 1fr animates to the content's natural height */
 .tl-details { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s ease, opacity .25s ease; }
 .tl-details.open { grid-template-rows: 1fr; opacity: 1; }
-.tl-details > * { overflow: hidden; }
+.tl-details > div { overflow: hidden; min-height: 0; }
 @media (prefers-reduced-motion: reduce) { .tl-details, .tl-toggle svg { transition: none; } }
-.tl-points { margin: 0; padding: 6px 0 0 18px; /* padding, not margin: it must collapse to 0 when closed */ color: #374151; line-height: 1.55; }
+.tl-points { margin: 6px 0 0; padding-left: 18px; color: #374151; line-height: 1.55; }
 .tl-points li + li { margin-top: 8px; }
 .tl-points li::marker { color: var(--accent2); }
 
@@ -364,16 +364,22 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
   display: grid; place-items: center; height: 100%;
   font-size: 4.5rem; font-weight: 700; color: rgba(30,58,138,.35);
 }
-.pj-body { display: flex; flex-direction: column; justify-content: center; padding: 24px 28px; }
+.pj-body { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 24px 28px; overflow-wrap: anywhere; }
 .pj-body h2 { margin: 2px 0; font-size: 1.5rem; font-weight: 700; color: var(--ink); }
-.projects .pj-links { display: flex; gap: 16px; margin-top: 16px; }
-.pj-links a { font-size: .9rem; font-weight: 600; color: var(--accent2); text-decoration: none; }
-.pj-links a:hover { color: var(--accent); }
+.pj-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin-top: 14px; }
+.pj-actions .tl-toggle { margin-top: 0; }
+.pj-actions a { font-size: .9rem; font-weight: 600; color: var(--accent2); text-decoration: none; }
+.pj-actions a:hover { color: var(--accent); }
+/* the details panel spans under both the photo and the text */
+.pj-card .tl-details { grid-column: 1 / -1; order: 2; }
+.pj-card .tl-points { margin: 0; padding: 18px 28px 24px 46px; border-top: 1px solid rgba(30,27,75,.08); }
+.pj-media { min-width: 0; }
 
 @media (max-width: 699px) {
   .pj-card, .pj-card:nth-child(even) { grid-template-columns: 1fr; }
   .pj-card:nth-child(even) .pj-media { order: 0; }
   .pj-body { padding: 16px 18px 20px; }
+  .pj-card .tl-points { padding: 14px 18px 20px 36px; }
   .pj-body h2 { font-size: 1.3rem; }
 }
 
