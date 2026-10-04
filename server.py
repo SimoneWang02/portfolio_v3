@@ -63,7 +63,11 @@ class Handler(SimpleHTTPRequestHandler):
         if not API_KEY:
             return self.send_error(500, "DEEPSEEK_API_KEY not set")
 
-        persona = (ROOT / "persona.md").read_text()  # re-read so edits apply live
+        # re-read so edits apply live; fall back to the template on a fresh clone
+        persona_file = ROOT / "persona.md"
+        if not persona_file.exists():
+            persona_file = ROOT / "persona.example.md"
+        persona = persona_file.read_text()
         payload = {
             "model": MODEL,
             "stream": True,
