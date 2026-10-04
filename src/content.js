@@ -9,3 +9,94 @@ export const LINKS = {
   email: "mailto:simone.wang2002@gmail.com",
   cv: "/Simone_Resume.pdf", // served from public/
 };
+
+// Experience page timeline, from the résumé (public/Simone_Resume.pdf), newest first.
+// kind picks the marker icon; about lines stack under the title; Bonobo's client projects hang off its stop, newest first.
+export const EXPERIENCE = [
+  {
+    kind: "school",
+    title: "MSCS Student at NYU Tandon",
+    about: ["New York University, Tandon School of Engineering", "M.S. in Computer Science"],
+    dates: "Sep 2026 – Expected May 2028",
+  },
+  {
+    kind: "work",
+    title: "Bonobo Srl",
+    about: ["Web & Mobile Development Agency", "Modena, Italy"],
+    dates: "Nov 2022 – May 2026",
+    ladder: ["Intern", "Junior", "Senior"],
+    projects: [
+      {
+        name: "StartClaims",
+        url: "https://start-claims.peritek.eu",
+        about: "Insurance Claims Platform for Peritek Srl",
+        dates: "Dec 2022 – May 2026",
+        role: "Senior Developer",
+        hours: "~986 hours",
+        tags: ["Angular", "Laravel", "API Integrations", "GIS Systems"],
+        points: [
+          "Appointed technical lead for a merger integrating StartClaims with a 30-year legacy loss-adjuster system, consolidating two multi-million-euro platforms; worked weekly onsite with the company owners, deployed production updates independently, and shaped roadmap priorities from workflow observation and stakeholder interviews.",
+          "Digitized the full claims-archiving workflow, replacing paper-based Word templates with a web-based Digital Desk where adjusters create and manage documents entirely in-platform; benchmarked and optimized queries and automated repetitive tasks, raising throughput so Peritek could accept more claim assignments.",
+          "Built an interactive GIS claims map on the Google Maps API - added lat/long fields through migrations, bulk-geocoded all historical claims, and implemented marker clustering to help surveyors optimize site-visit routes; integrated the Deep Property and Generali APIs to enrich assessments and automate assignment ingestion.",
+          "Used AI-assisted development (OpenAI Codex) for rapid prototyping and debugging while keeping manual code review and testing in the loop for production reliability.",
+        ],
+      },
+      {
+        name: "DOCpack",
+        url: "https://docpack.it",
+        about: "Cloud Platform for Packaging Design Teams",
+        dates: "Apr 2025 – Sep 2025",
+        role: "Senior Developer",
+        hours: "~280 hours (deadline-driven)",
+        tags: ["React", "NestJS", "Adobe PDF Embed API"],
+        points: [
+          "Led development for the first two months, then supervised a junior developer while coordinating roadmap execution, bimonthly releases, and client testing cycles.",
+          "Rebuilt the proposal viewer on the Adobe PDF Embed API with annotation tools, faster client-side loading, and richer markup controls; implemented the full job-reporting module (services, controllers, DTOs, migrations) so teams could submit photo reports through the API.",
+          "Extended job search with customer-level filters wired through shared hooks, and reverse-engineered complex packaging workflows from the legacy system to translate required features faithfully.",
+        ],
+      },
+      {
+        name: "DuePalleggi",
+        url: "https://www.duepalleggi.it",
+        about: "Sports Facility Reservation Platform (Web + Mobile)",
+        dates: "Oct 2023 – Jan 2025",
+        role: "Junior Developer",
+        hours: "~320 hours",
+        tags: ["React Native", "Laravel"],
+        points: [
+          "Modernized an outdated mobile app to match the continuously evolving web platform: refreshed UI/UX, repaired broken discount logic, fixed booking failures, and resolved data-display inconsistencies.",
+          "Delivered a major production release including indexed-club booking, ICS calendar attachments, refined mail systems, secure change-password and change-email flows, and faster club data generation; repaired edge cases such as bookings through inactive clubs and incorrect split-payment logic.",
+          "Managed Android releases via Google Play Console and CI/CD web deployments through GitLab pipelines; mentored high-school interns through code review, task assignment, and early CS career guidance.",
+          "Made this work the subject of my B.S. capstone thesis under Prof. Nicola Capodieci (score 104/110), documenting 25+ features, 4 new REST APIs, and 50+ commits against production scale (5,525,000+ bookings; 125,000+ users; 1,200+ clubs; 3,600+ fields) and analyzing architectural decisions, mobile release management, and UI/UX consistency; presented to a commission including Prof. Marco Bertogna, a platform user.",
+        ],
+      },
+      {
+        name: "Iscrizioni Coop Accento",
+        url: "https://iscrizioni.coopaccento.it",
+        about: "Regional Summer Camp Online Enrollment Portal",
+        dates: "Mar 2023 – Nov 2024",
+        role: "Junior Developer",
+        hours: "~392 hours",
+        tags: ["Laravel", "Blade", "SOAP"],
+        points: [
+          "Rebuilt an overwhelming registration form into a multi-step enrollment flow, improving clarity and ease of completion for parents.",
+          "Delivered the Carta Docente voucher module, integrating SOAP services, and user-facing modals for teachers redeeming credits.",
+          "Strengthened child-data validation (age mismatches, disability/allergy info, mandatory guardian information) and payment rules (early-bird, sibling discounts, IBAN checks); rebuilt director dashboards with year/center filters and historic-child toggles.",
+          "Mentored interns while handling bug fixes and managing incoming feature requests through Trello.",
+        ],
+      },
+    ],
+  },
+  {
+    kind: "school",
+    title: "BSCS Student at UniMoRe",
+    about: ["University of Modena and Reggio Emilia", "B.S. in Computer Science"],
+    dates: "Graduated Oct 2024",
+    grade: "Final Grade: 104/110 (US GPA 3.78/4.00)",
+    coursework: [
+      "Computer Architecture", "Object-oriented Programming", "Operating Systems", "Protocols & Network",
+      "Languages & Compilers", "Information Management", "Full-Stack Engineering", "Mobile Development",
+      "DevOps", "Distributed Systems", "Algorithms", "Databases", "Web Technologies",
+    ],
+  },
+];
