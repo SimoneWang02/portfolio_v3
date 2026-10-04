@@ -1,0 +1,9 @@
+.env
+__pycache__/
+node_modules/
+dist/
+*:Zone.Identifier
+.DS_Store
+*.log
+.env.*
+!.env.example

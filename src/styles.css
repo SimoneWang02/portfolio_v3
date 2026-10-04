@@ -1,0 +1,236 @@
+:root {
+  --bg1: #f4f4f2; --bg2: #eef1f3; --ink: #1e1b4b; --muted: #6b7280;
+  --accent: #ec4899; --accent2: #8b5cf6; --card: rgba(255,255,255,.85);
+  --shadow: 0 10px 30px rgba(30,27,75,.12);
+  /* top-right social row; the chat dock opens to just below it */
+  --edge: 20px; --social: 64px; --social-gap: 16px;
+  --dock-header: 48px;
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; }
+body {
+  font-family: "Fredoka", system-ui, sans-serif; color: var(--ink);
+  background: radial-gradient(circle at 20% 10%, var(--bg1), transparent 60%),
+              radial-gradient(circle at 80% 90%, var(--bg2), transparent 60%), #fafafa;
+  background-attachment: fixed;
+}
+h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.6rem); font-weight: 700; line-height: 1.05; }
+h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
+          -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---------- nav (top-left) ---------- */
+.nav {
+  position: fixed; top: var(--edge); left: clamp(16px, 3vw, 32px); z-index: 10;
+  display: flex; gap: 6px; padding: 6px; border-radius: 999px;
+  background: var(--card); backdrop-filter: blur(8px); box-shadow: var(--shadow);
+}
+.nav a {
+  padding: 10px 20px; border-radius: 999px; color: var(--ink); text-decoration: none;
+  font-size: 1.1rem; transition: background .15s;
+}
+.nav a:hover { background: rgba(139,92,246,.1); }
+.nav a.active { color: #fff; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+/* ---------- social squares (top-right) ---------- */
+.socials {
+  position: fixed; top: var(--edge); right: clamp(16px, 3vw, 32px); z-index: 10;
+  display: flex; gap: var(--social-gap);
+}
+/* at rest: brand-coloured logo on solid white; hover: filled with the brand colour */
+.social {
+  display: grid; place-items: center; width: var(--social); height: var(--social); border-radius: 16px;
+  color: var(--brand); background: #fff; text-decoration: none; border: 1.5px solid rgba(30,27,75,.12); box-shadow: var(--shadow);
+  transition: transform .15s, color .15s, background .15s, border-color .15s;
+}
+.social svg { width: 30px; height: 30px; }
+.social-text { font-weight: 700; font-size: 1.35rem; letter-spacing: .02em; line-height: 1; }
+.social:hover { transform: translateY(-2px); color: #fff; background: var(--brand); border-color: var(--brand); }
+.social.linkedin { --brand: #0a66c2; }
+.social.github { --brand: #181717; }
+/* Handshake's lime (#d3fb52) vanishes on white: black mark at rest, black-on-lime on hover */
+.social.handshake { --brand: #000; }
+.social.handshake:hover { color: #000; background: #d3fb52; border-color: #d3fb52; }
+.social.email { --brand: var(--ink); }
+.social.cv { --brand: var(--ink); }
+
+/* ---------- home: full-bleed chibi, chat docked bottom-right ---------- */
+.home { height: 100dvh; overflow: hidden; }
+.stage-col { position: fixed; inset: 0; }
+/* hero sits behind the (transparent) chibi canvas */
+.hero { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+
+/* intro facts: top-left, under the nav */
+.blurb {
+  position: absolute; left: clamp(16px, 3vw, 32px); top: 104px;
+  max-width: 400px; color: var(--ink); font-size: clamp(1.05rem, 1.4vw, 1.25rem); line-height: 1.4;
+}
+.blurb ul { margin: 0; padding: 0; list-style: none; }
+.blurb li { display: flex; gap: 12px; }
+.blurb li + li { margin-top: 12px; }
+.blurb-icon {
+  flex: none; width: 1.1em; height: 1.1em; margin-top: .15em; color: var(--accent2);
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+/* "open to work" pill */
+.status {
+  display: inline-flex; align-items: center; gap: 8px; margin: 22px 0 0; padding: 6px 12px;
+  border-radius: 999px; font-size: .9em; font-weight: 500;
+  color: #166534; background: #dcfce7; border: 1px solid #bbf7d0;
+}
+.pulse {
+  position: relative; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+}
+.pulse::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; background: #22c55e;
+  animation: pulse 1.8s ease-out infinite;
+}
+@keyframes pulse { to { transform: scale(2.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
+
+.stage { position: absolute; inset: 0; z-index: 1; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.stage canvas { display: block; } /* cursor: set from JS - pointer over the chibi / high-five zone */
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+
+/* high-five impact burst, spawned at the chibi's palm */
+.hi5 { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 1; }
+.hi5 > * { position: absolute; left: 0; top: 0; }
+.hi5-flash {
+  width: 70px; height: 70px; margin: -35px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 25%, rgba(253,224,71,.9) 40%, rgba(236,72,153,0) 70%);
+  animation: hi5-flash .35s ease-out forwards;
+}
+.hi5-ring {
+  width: 90px; height: 90px; margin: -45px; border-radius: 50%;
+  border: 4px solid var(--accent);
+  animation: hi5-ring .55s cubic-bezier(.2,.8,.3,1) forwards;
+}
+.hi5-spark {
+  width: 14px; height: 4px; margin: -2px -7px; border-radius: 2px;
+  background: var(--accent2);
+  animation: hi5-spark .6s cubic-bezier(.15,.8,.3,1) forwards;
+}
+.hi5-spark.alt { background: #facc15; }
+.hi5-text {
+  margin: -85px 0 0 -2em; width: 4em; text-align: center;
+  font-weight: 700; font-size: 1.4rem; color: var(--accent); white-space: nowrap;
+  text-shadow: 0 2px 0 #fff, 0 0 8px #fff;
+  animation: hi5-text .9s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+@keyframes hi5-flash { from { transform: scale(.3); opacity: 1 } to { transform: scale(1.3); opacity: 0 } }
+@keyframes hi5-ring { from { transform: scale(.2); opacity: 1; border-width: 6px } to { transform: scale(1.4); opacity: 0; border-width: 1px } }
+@keyframes hi5-spark {
+  from { transform: rotate(var(--a)) translateX(10px) scaleX(1.4); opacity: 1 }
+  to { transform: rotate(var(--a)) translateX(var(--d)) scaleX(.2); opacity: 0 }
+}
+@keyframes hi5-text {
+  0% { transform: translateY(10px) scale(.4) rotate(-8deg); opacity: 0 }
+  25% { transform: translateY(0) scale(1.1) rotate(-8deg); opacity: 1 }
+  70% { opacity: 1 }
+  100% { transform: translateY(-18px) scale(1) rotate(-8deg); opacity: 0 }
+}
+@media (prefers-reduced-motion: reduce) { .hi5-spark, .hi5-ring { display: none; } }
+
+.dots span { display: inline-block; animation: blink 1.2s infinite; font-weight: 700; }
+.dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%,80%,100% { opacity: .2 } 40% { opacity: 1 } }
+
+/* chat dock (LinkedIn messaging style) */
+.dock {
+  position: fixed; z-index: 5; right: clamp(16px, 3vw, 32px); bottom: 0; width: 384px;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: rgba(255,255,255,.92); backdrop-filter: blur(10px);
+  border-radius: 12px 12px 0 0; box-shadow: 0 0 0 1px rgba(30,27,75,.08), var(--shadow);
+}
+.dock-header {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: var(--dock-header); padding: 0 16px;
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+  background: transparent; border: 0; border-bottom: 1px solid rgba(30,27,75,.08);
+}
+.dock.minimized .dock-header { border-bottom: 0; }
+.dock-header:hover { background: rgba(139,92,246,.06); }
+.dock-title { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+.dock-title strong { font-weight: 600; font-size: .95rem; }
+.chevron { width: 20px; height: 20px; color: var(--muted); transition: transform .2s; }
+.dock:not(.minimized) .chevron { transform: rotate(180deg); }
+
+.msg-icon { width: 20px; height: 20px; flex: none; color: var(--accent); }
+
+.dock-body {
+  display: flex; flex-direction: column; /* open: same gap below the socials as above them */
+  height: calc(100dvh - 2 * var(--edge) - var(--social) - var(--dock-header));
+  transition: height .3s ease, opacity .25s ease;
+}
+.dock.minimized .dock-body { height: 0; opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .dock-body, .chevron { transition: none; } }
+.chat-log {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; scrollbar-width: thin;
+}
+.msg-row { display: flex; align-items: flex-end; gap: 8px; }
+.msg-row.user { justify-content: flex-end; }
+.msg {
+  max-width: 80%; padding: 8px 12px; border-radius: 16px; line-height: 1.4; font-size: .95rem;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.msg.user {
+  color: #fff; border-bottom-right-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+.msg.assistant { background: #f3f0fb; border-top-left-radius: 4px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
+.chip {
+  font: inherit; font-size: .85rem; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid rgba(139,92,246,.4); background: #fff; color: var(--accent2);
+  transition: background .15s;
+}
+.chip:hover { background: rgba(139,92,246,.08); }
+.ask {
+  display: flex; gap: 8px; align-items: center; padding: 10px 12px;
+  border-top: 1px solid rgba(30,27,75,.08);
+}
+.ask input {
+  flex: 1; min-width: 0; font: inherit; font-size: 1rem; outline: 0; color: var(--ink);
+  padding: 9px 12px; border-radius: 8px; border: 1px solid transparent; background: #f3f2f8;
+}
+.ask input:focus { border-color: var(--accent2); background: #fff; }
+.ask button {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0;
+  border: 0; border-radius: 50%; color: #fff; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  transition: transform .15s;
+}
+.ask button svg { width: 18px; height: 18px; }
+.ask button:not([disabled]):hover { transform: scale(1.06); }
+button[disabled] { opacity: .5; cursor: not-allowed; }
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  .blurb { max-width: 300px; font-size: 1rem; }
+  .stage { left: 200px; }
+}
+/* narrow screens: dock becomes a full-width bottom sheet, chibi stays visible above */
+@media (max-width: 899px) {
+  /* keep clear of the socials column */
+  .blurb { left: 16px; right: calc(var(--social) + 32px); top: 96px; max-width: none; font-size: .95rem; }
+  .blurb li { gap: 10px; }
+  .blurb li + li { margin-top: 4px; }
+  .status { margin-top: 10px; }
+  .dock { left: 8px; right: 8px; width: auto; }
+  .dock-body { height: min(55dvh, 460px); }
+  .dock.minimized .dock-body { height: 0; }
+}
+@media (max-width: 699px) {
+  .socials { flex-direction: column; }
+}
+@media (max-width: 420px) {
+  .nav { gap: 2px; padding: 4px; }
+  .nav a { padding: 8px 10px; font-size: 1rem; }
+  .socials { gap: 10px; }
+  .social { width: 44px; height: 44px; }
+  .social svg { width: 22px; height: 22px; }
+}
+
+/* ---------- stub pages ---------- */
+.page { max-width: 760px; margin: 0 auto; padding: 120px clamp(16px, 5vw, 64px) 64px; }
+.page p { color: var(--muted); font-size: 1.15rem; line-height: 1.6; }
