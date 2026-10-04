@@ -107,7 +107,7 @@ export const EXPERIENCE = [
 
 // Projects page cards: independent work, newest first (by start date).
 // image: a path under public/ (e.g. "/projects/foo.jpg", ~16:9); leave it null and the card shows a tinted placeholder.
-// type: Freelance / Startup / Personal, shown as a pill by the dates.
+// type: Pro bono / Startup / Personal (or Freelance for paid client work), shown as a pill by the dates.
 // summary shows on the card; points open under "Show details" (add as many as you like).
 // repo / url are optional; each one that's set becomes a link on the card.
 export const PROJECTS = [
@@ -131,7 +131,7 @@ export const PROJECTS = [
   },
   {
     name: "Yocigaci",
-    type: "Freelance",
+    type: "Pro bono",
     about: "Trading Card Game E-Commerce Platform",
     dates: "Jun 2026 – Jul 2026",
     image: null,
@@ -148,7 +148,7 @@ export const PROJECTS = [
   },
   {
     name: "MeeTea&Poke",
-    type: "Freelance",
+    type: "Pro bono",
     about: "Click & Collect Ordering Platform",
     dates: "May 2026",
     image: null,
