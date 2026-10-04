@@ -11,13 +11,16 @@ export const LINKS = {
 };
 
 // Experience page timeline, from the résumé (public/Simone_Resume.pdf), newest first.
-// kind picks the marker icon; about lines stack under the title; Bonobo's client projects hang off its stop, newest first.
+// Each stop: title = where, about = [what, location]; kind picks the marker icon.
+// Bonobo's client projects hang off its stop, newest first: `summary` shows on the card, `points` on expand.
 export const EXPERIENCE = [
   {
     kind: "school",
-    title: "MSCS Student at NYU Tandon",
-    about: ["New York University, Tandon School of Engineering", "M.S. in Computer Science"],
+    title: "NYU Tandon School of Engineering",
+    about: ["M.S. in Computer Science", "Brooklyn, NY"],
     dates: "Sep 2026 – Expected May 2028",
+    courseworkLabel: "Current coursework",
+    coursework: ["Information Visualization", "Big Data", "Design & Analysis of Algorithms I"],
   },
   {
     kind: "work",
@@ -25,14 +28,14 @@ export const EXPERIENCE = [
     about: ["Web & Mobile Development Agency", "Modena, Italy"],
     dates: "Nov 2022 – May 2026",
     ladder: ["Intern", "Junior", "Senior"],
+    growth: "Started as an intern and grew into owning client projects end-to-end, from client meetings to production deploys.",
     projects: [
       {
         name: "StartClaims",
         url: "https://start-claims.peritek.eu",
         about: "Insurance Claims Platform for Peritek Srl",
         dates: "Dec 2022 – May 2026",
-        role: "Senior Developer",
-        hours: "~986 hours",
+        summary: "Tech lead for the merger of two multi-million-euro claims platforms; digitized the claims archive and built a GIS claims map.",
         tags: ["Angular", "Laravel", "API Integrations", "GIS Systems"],
         points: [
           "Appointed technical lead for a merger integrating StartClaims with a 30-year legacy loss-adjuster system, consolidating two multi-million-euro platforms; worked weekly onsite with the company owners, deployed production updates independently, and shaped roadmap priorities from workflow observation and stakeholder interviews.",
@@ -46,8 +49,7 @@ export const EXPERIENCE = [
         url: "https://docpack.it",
         about: "Cloud Platform for Packaging Design Teams",
         dates: "Apr 2025 – Sep 2025",
-        role: "Senior Developer",
-        hours: "~280 hours (deadline-driven)",
+        summary: "Led development, then supervised a junior developer; rebuilt the proposal viewer on the Adobe PDF Embed API.",
         tags: ["React", "NestJS", "Adobe PDF Embed API"],
         points: [
           "Led development for the first two months, then supervised a junior developer while coordinating roadmap execution, bimonthly releases, and client testing cycles.",
@@ -60,8 +62,7 @@ export const EXPERIENCE = [
         url: "https://www.duepalleggi.it",
         about: "Sports Facility Reservation Platform (Web + Mobile)",
         dates: "Oct 2023 – Jan 2025",
-        role: "Junior Developer",
-        hours: "~320 hours",
+        summary: "Shipped a major release for a platform with 5.5M+ bookings and 125K+ users; it became my B.S. capstone thesis.",
         tags: ["React Native", "Laravel"],
         points: [
           "Modernized an outdated mobile app to match the continuously evolving web platform: refreshed UI/UX, repaired broken discount logic, fixed booking failures, and resolved data-display inconsistencies.",
@@ -75,8 +76,7 @@ export const EXPERIENCE = [
         url: "https://iscrizioni.coopaccento.it",
         about: "Regional Summer Camp Online Enrollment Portal",
         dates: "Mar 2023 – Nov 2024",
-        role: "Junior Developer",
-        hours: "~392 hours",
+        summary: "Turned an overwhelming registration form into a multi-step enrollment flow and built the Carta Docente voucher module.",
         tags: ["Laravel", "Blade", "SOAP"],
         points: [
           "Rebuilt an overwhelming registration form into a multi-step enrollment flow, improving clarity and ease of completion for parents.",
@@ -89,14 +89,18 @@ export const EXPERIENCE = [
   },
   {
     kind: "school",
-    title: "BSCS Student at UniMoRe",
-    about: ["University of Modena and Reggio Emilia", "B.S. in Computer Science"],
-    dates: "Graduated Oct 2024",
+    title: "University of Modena and Reggio Emilia",
+    about: ["B.S. in Computer Science", "Modena, Italy"],
+    dates: "Sep 2021 – Oct 2024",
     grade: "Final Grade: 104/110 (US GPA 3.78/4.00)",
+    // exams from the official transcript (Certificato di Laurea), CS first, then math & science
     coursework: [
-      "Computer Architecture", "Object-oriented Programming", "Operating Systems", "Protocols & Network",
-      "Languages & Compilers", "Information Management", "Full-Stack Engineering", "Mobile Development",
-      "DevOps", "Distributed Systems", "Algorithms", "Databases", "Web Technologies",
+      "Programming 1", "Programming 2", "Programming Complements", "Object Programming",
+      "Data Structures and Algorithms", "Computer Architecture", "Operating Systems", "Protocols and Network",
+      "Languages and Compilers", "Databases", "Information Management", "Web Technologies",
+      "Learning and Development in Artificial Systems",
+      "Linear Algebra", "Mathematical Analysis", "Numerical Calculus", "Integer Linear Optimization",
+      "Statistics and Elements of Probability", "Physics",
     ],
   },
 ];

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { EXPERIENCE } from "../content.js";
 
 const external = { target: "_blank", rel: "noopener noreferrer" };
@@ -24,19 +24,30 @@ function useReveal() {
   return root;
 }
 
+// collapsed: the headline facts + a one-line summary; "Show details" opens the full résumé points
 function Project({ p }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
   return (
     <article className="tl-card reveal">
       <p className="tl-dates">{p.dates}</p>
       <h3><a href={p.url} {...external}>{p.name}</a></h3>
       <p className="tl-about">{p.about}</p>
-      <p className="tl-role">{p.role}<span className="tl-hours">{p.hours}</span></p>
       <ul className="tl-tags" aria-label="Stack">
         {p.tags.map((t) => <li key={t}>{t}</li>)}
       </ul>
-      <ul className="tl-points">
-        {p.points.map((pt) => <li key={pt}>{pt}</li>)}
-      </ul>
+      <p className="tl-summary">{p.summary}</p>
+      <button type="button" className="tl-toggle" aria-expanded={open} aria-controls={id}
+              onClick={() => setOpen((x) => !x)}>
+        {open ? "Hide details" : "Show details"}
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {/* stays mounted so the height can animate; inert keeps it out of tab order while closed */}
+      <div className={`tl-details${open ? " open" : ""}`} id={id} inert={!open}>
+        <ul className="tl-points">
+          {p.points.map((pt) => <li key={pt}>{pt}</li>)}
+        </ul>
+      </div>
     </article>
   );
 }
@@ -62,11 +73,12 @@ export default function Experience() {
                   {e.ladder.map((r) => <li key={r}>{r}</li>)}
                 </ol>
               )}
+              {e.growth && <p className="tl-growth">{e.growth}</p>}
             </header>
-            {e.grade && (
+            {e.coursework && (
               <div className="tl-card reveal">
-                <p className="tl-role">{e.grade}</p>
-                <p className="tl-label">Coursework</p>
+                {e.grade && <p className="tl-role">{e.grade}</p>}
+                <p className="tl-label">{e.courseworkLabel ?? "Coursework"}</p>
                 <ul className="tl-tags">
                   {e.coursework.map((c) => <li key={c}>{c}</li>)}
                 </ul>
