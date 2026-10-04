@@ -1,6 +1,6 @@
 :root {
   --bg1: #f4f4f2; --bg2: #eef1f3; --ink: #1e1b4b; --muted: #6b7280;
-  --accent: #ec4899; --accent2: #8b5cf6; --card: rgba(255,255,255,.85);
+  --accent: #1e3a8a; --accent2: #3b82f6; --card: rgba(255,255,255,.85);
   --shadow: 0 10px 30px rgba(30,27,75,.12);
   /* top-right social row; the chat dock opens to just below it */
   --edge: 20px; --social: 64px; --social-gap: 16px;
@@ -28,7 +28,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   padding: 10px 20px; border-radius: 999px; color: var(--ink); text-decoration: none;
   font-size: 1.1rem; transition: background .15s;
 }
-.nav a:hover { background: rgba(139,92,246,.1); }
+.nav a:hover { background: rgba(59,130,246,.1); }
 .nav a.active { color: #fff; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
 
 /* ---------- social squares (top-right) ---------- */
@@ -97,7 +97,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
 .hi5 > * { position: absolute; left: 0; top: 0; }
 .hi5-flash {
   width: 70px; height: 70px; margin: -35px; border-radius: 50%;
-  background: radial-gradient(circle, #fff 0 25%, rgba(253,224,71,.9) 40%, rgba(236,72,153,0) 70%);
+  background: radial-gradient(circle, #fff 0 25%, rgba(253,224,71,.9) 40%, rgba(253,224,71,0) 70%);
   animation: hi5-flash .35s ease-out forwards;
 }
 .hi5-ring {
@@ -148,7 +148,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   background: transparent; border: 0; border-bottom: 1px solid rgba(30,27,75,.08);
 }
 .dock.minimized .dock-header { border-bottom: 0; }
-.dock-header:hover { background: rgba(139,92,246,.06); }
+.dock-header:hover { background: rgba(59,130,246,.06); }
 .dock-title { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
 .dock-title strong { font-weight: 600; font-size: .95rem; }
 .chevron { width: 20px; height: 20px; color: var(--muted); transition: transform .2s; }
@@ -177,15 +177,15 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   color: #fff; border-bottom-right-radius: 4px;
   background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
-.msg.assistant { background: #f3f0fb; border-top-left-radius: 4px; }
+.msg.assistant { background: #eef3fb; border-top-left-radius: 4px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
 .chip {
   font: inherit; font-size: .85rem; padding: 5px 12px; border-radius: 999px; cursor: pointer;
-  border: 1.5px solid rgba(139,92,246,.4); background: #fff; color: var(--accent2);
+  border: 1.5px solid rgba(59,130,246,.4); background: #fff; color: var(--accent2);
   transition: background .15s;
 }
-.chip:hover { background: rgba(139,92,246,.08); }
+.chip:hover { background: rgba(59,130,246,.08); }
 .ask {
   display: flex; gap: 8px; align-items: center; padding: 10px 12px;
   border-top: 1px solid rgba(30,27,75,.08);

@@ -70,9 +70,7 @@ function makeNameTag(text, maxAnisotropy) {
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font = font; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
-    g.addColorStop(0, "#ec4899"); g.addColorStop(1, "#8b5cf6");  // --accent -> --accent2
-    ctx.fillStyle = g;
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent2").trim();
     ctx.fillText(text, canvas.width / 2, canvas.height / 2 + TEXT_H * PX * 0.06);
     tex.needsUpdate = true;
   }
