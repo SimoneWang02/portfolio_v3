@@ -192,9 +192,10 @@ function lerpPose(cur, target, k) { for (const key of ARM_KEYS) cur[key] += ((ta
 
 /**
  * Mounts the chibi into `container` (which must be position: relative/absolute/fixed).
+ * `mini`: start in the small companion framing (see setMini).
  * Returns controls for the chat to drive, plus dispose().
  */
-export function createChibi(container, { onProgress, onLoaded, onError } = {}) {
+export function createChibi(container, { mini = false, onProgress, onLoaded, onError } = {}) {
   let disposed = false;
   let width = container.clientWidth || 1, height = container.clientHeight || 1;
 
@@ -405,6 +406,14 @@ export function createChibi(container, { onProgress, onLoaded, onError } = {}) {
   const lerp = THREE.MathUtils.lerp;
   let frame = 0;
 
+  // mini: the container shrinks to a small draggable box (CSS animates it); the camera moves in to keep
+  // the chibi filling it and the name tag shrinks away. miniK eases toward miniT at about the CSS pace.
+  let miniT = mini ? 1 : 0, miniK = miniT;
+  // full-size framing, frozen while mini so the box's changing aspect mid-shrink doesn't make it jump
+  let fullZ = 5.2, fullY = 1.05;
+  const frameFull = (aspect) => { fullZ = aspect < 0.8 ? 7 : 5.2; fullY = aspect < 0.8 ? 1.2 : 1.05; };
+  frameFull(innerWidth / innerHeight);
+
   function animate() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
@@ -573,16 +582,20 @@ export function createChibi(container, { onProgress, onLoaded, onError } = {}) {
       headBone.getWorldQuaternion(_q).multiply(_q2.copy(headRest.q).invert());
       tag.group.quaternion.copy(_q);
       tag.group.position.set(0, TAG_Y, 0).sub(headRest.pos).applyQuaternion(_q).add(headBone.getWorldPosition(_v));
-      tag.group.visible = true;
+      const tagScale = Math.max(0, 1 - miniK * 1.6); // gone well before the box is done shrinking
+      tag.group.scale.setScalar(tagScale);
+      tag.group.visible = tagScale > 0.01;
     }
     const lift = Math.max(0, y) / 0.35;                 // 0 on the ground .. 1 at the top of a hop
     blob.scale.setScalar(1 - 0.35 * lift);
     blob.material.opacity = 1 - 0.5 * lift;
 
-    // keep framing nice on narrow screens
-    const aspect = width / height;
-    camera.position.z = aspect < 0.8 ? 7 : 5.2;
-    camera.lookAt(0, aspect < 0.8 ? 1.2 : 1.05, 0);
+    // keep framing nice on narrow screens; closer in when mini
+    miniK = lerp(miniK, miniT, 1 - Math.exp(-dt * 6));
+    if (miniT === 0 && miniK < 0.001) frameFull(width / height);
+    // mini: frames y -0.1 .. 2.7 so the head stays in the small canvas at the top of a hop (+stretch)
+    camera.position.z = lerp(fullZ, 4.9, miniK);
+    camera.lookAt(0, lerp(fullY, 1.3, miniK), 0);
 
     renderer.render(scene, camera);
     frame = requestAnimationFrame(animate);
@@ -592,6 +605,7 @@ export function createChibi(container, { onProgress, onLoaded, onError } = {}) {
     width = container.clientWidth || 1; height = container.clientHeight || 1;
     camera.aspect = width / height; camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+    renderer.render(scene, camera); // resizing clears the canvas; redraw now so it doesn't flicker mid-animation
   });
   resizeObserver.observe(container);
 
@@ -616,6 +630,8 @@ export function createChibi(container, { onProgress, onLoaded, onError } = {}) {
     done() {
       later(() => { if (mood === "talking") mood = "idle"; }, 600);
     },
+    // switch between the full-size stage and the small companion
+    setMini(on) { miniT = on ? 1 : 0; },
     dispose() {
       disposed = true;
       cancelAnimationFrame(frame);

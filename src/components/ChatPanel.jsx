@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { CHIPS, GREETING } from "../content.js";
 
 // LinkedIn-messaging-style dock pinned bottom-right; the header bar minimizes/expands it.
-export default function ChatPanel({ messages, busy, ask }) {
+// `collapsed`: page-driven default (open on Home, minimized elsewhere so it doesn't cover the content).
+export default function ChatPanel({ messages, busy, ask, collapsed }) {
   const [text, setText] = useState("");
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(collapsed);
+  useEffect(() => setMinimized(collapsed), [collapsed]);
   const input = useRef(null);
   const log = useRef(null);
   const all = [{ role: "assistant", content: GREETING }, ...messages];

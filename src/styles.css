@@ -63,9 +63,8 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
 
 /* ---------- home: full-bleed chibi, chat docked bottom-right ---------- */
 .home { height: 100dvh; overflow: hidden; }
-.stage-col { position: fixed; inset: 0; }
 /* hero sits behind the (transparent) chibi canvas */
-.hero { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
 /* intro facts: top-left, under the nav */
 .blurb {
@@ -95,7 +94,22 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
 @keyframes pulse { to { transform: scale(2.8); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
 
-.stage { position: absolute; inset: 0; z-index: 1; }
+/* full-bleed on Home; on other pages it shrinks into a small bottom-left companion (.mini).
+   Explicit left/top/width/height on both ends so the change animates. The mini box leaves headroom
+   above the chibi for its hops (framing in createChibi.js). */
+.stage {
+  position: fixed; left: 0; top: 0; width: 100vw; height: 100dvh; z-index: 1;
+  transition: left .6s cubic-bezier(.4,0,.2,1), top .6s cubic-bezier(.4,0,.2,1),
+              width .6s cubic-bezier(.4,0,.2,1), height .6s cubic-bezier(.4,0,.2,1);
+  --mini-w: 150px; --mini-h: 210px; --mini-gap: 16px;
+}
+.stage.mini {
+  z-index: 4; /* under the chat dock */
+  left: var(--mini-gap); top: calc(100dvh - var(--mini-h) - var(--mini-gap));
+  width: var(--mini-w); height: var(--mini-h);
+}
+.stage.mini .loading { font-size: .75rem; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .stage { transition: none; } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .stage canvas { display: block; } /* cursor: set from JS - pointer over the chibi / high-five zone */
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
@@ -215,7 +229,7 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 
 @media (min-width: 900px) and (max-width: 1199px) {
   .blurb { max-width: 300px; font-size: 1rem; }
-  .stage { left: 200px; }
+  .stage { left: 200px; width: calc(100vw - 200px); }
 }
 /* narrow screens: dock becomes a full-width bottom sheet, chibi stays visible above */
 @media (max-width: 899px) {
@@ -225,6 +239,8 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
   .blurb li + li { margin-top: 4px; }
   .status { margin-top: 10px; }
   .dock { left: 8px; right: 8px; width: auto; }
+  .stage { --mini-w: 110px; --mini-h: 155px; }
+  .stage.mini { top: calc(100dvh - var(--mini-h) - var(--mini-gap) - var(--dock-header)); }
   .dock-body { height: min(55dvh, 460px); }
   .dock.minimized .dock-body { height: 0; }
 }
@@ -241,5 +257,6 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 }
 
 /* ---------- stub pages ---------- */
-.page { max-width: 760px; margin: 0 auto; padding: 120px clamp(16px, 5vw, 64px) 64px; }
+/* bottom padding clears the chat dock's header bar (full-width on narrow screens) */
+.page { max-width: 760px; margin: 0 auto; padding: 120px clamp(16px, 5vw, 64px) calc(64px + var(--dock-header)); }
 .page p { color: var(--muted); font-size: 1.15rem; line-height: 1.6; }

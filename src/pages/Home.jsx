@@ -1,8 +1,3 @@
-import { useRef } from "react";
-import ChibiStage from "../components/ChibiStage.jsx";
-import ChatPanel from "../components/ChatPanel.jsx";
-import { useChat } from "../hooks/useChat.js";
-
 // line icons for the blurb list (Lucide shapes)
 const ICONS = {
   code: <><path d="m16 18 6-6-6-6" /><path d="m8 6-6 6 6 6" /></>,
@@ -17,29 +12,24 @@ const Icon = ({ name }) => (
 // the "open to internships" badge hides itself from this date on
 const STATUS_UNTIL = new Date(2028, 8, 1); // 1 Sep 2028
 
+// The chibi and chat dock are rendered by App (they persist across pages); Home adds the intro behind them.
 export default function Home() {
-  const chibi = useRef(null);
-  const chat = useChat(chibi);
   return (
     <main className="home">
-      <section className="stage-col">
-        <header className="hero">
-          <h1 className="sr-only">Simone Wang</h1>
-          <div className="blurb">
-            <ul>
-              <li><Icon name="code" />Full-Stack Developer</li>
-              <li><Icon name="cap" />MSCS Student at NYU Tandon</li>
-              <li><Icon name="globe" /><span>Native Italian &amp; Mandarin<br />Fluent English</span></li>
-              <li><Icon name="pin" />Based in Brooklyn, NY</li>
-            </ul>
-            {new Date() < STATUS_UNTIL && (
-              <p className="status"><span className="pulse" aria-hidden="true" />Open to Summer 2027 Internships</p>
-            )}
-          </div>
-        </header>
-        <ChibiStage controlsRef={chibi} />
-      </section>
-      <ChatPanel {...chat} />
+      <header className="hero">
+        <h1 className="sr-only">Simone Wang</h1>
+        <div className="blurb">
+          <ul>
+            <li><Icon name="code" />Full-Stack Developer</li>
+            <li><Icon name="cap" />MSCS Student at NYU Tandon</li>
+            <li><Icon name="globe" /><span>Native Italian &amp; Mandarin<br />Fluent English</span></li>
+            <li><Icon name="pin" />Based in Brooklyn, NY</li>
+          </ul>
+          {new Date() < STATUS_UNTIL && (
+            <p className="status"><span className="pulse" aria-hidden="true" />Open to Summer 2027 Internships</p>
+          )}
+        </div>
+      </header>
     </main>
   );
 }
