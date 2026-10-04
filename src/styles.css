@@ -378,7 +378,8 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 /* the details panel spans under both the photo and the text */
 .pj-card .tl-details { grid-column: 1 / -1; order: 2; }
 .pj-card .tl-points { margin: 0; padding: 18px 28px 24px 46px; border-top: 1px solid rgba(30,27,75,.08); }
-.pj-media { min-width: 0; }
+/* aspect-ratio items don't stretch by default, so a taller text column would leave a strip under the photo */
+.pj-media { min-width: 0; align-self: stretch; }
 
 @media (max-width: 699px) {
   .pj-card, .pj-card:nth-child(even) { grid-template-columns: 1fr; }
