@@ -25,11 +25,19 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   background: var(--card); backdrop-filter: blur(8px); box-shadow: var(--shadow);
 }
 .nav a {
+  position: relative; z-index: 1;
   padding: 10px 20px; border-radius: 999px; color: var(--ink); text-decoration: none;
-  font-size: 1.1rem; transition: background .15s;
+  font-size: 1.1rem; transition: background .15s, color .3s;
 }
-.nav a:hover { background: rgba(59,130,246,.1); }
-.nav a.active { color: #fff; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.nav a:hover:not(.active) { background: rgba(59,130,246,.1); }
+.nav a.active { color: #fff; }
+/* sliding highlight behind the active link (positioned by Nav.jsx) */
+.nav-pill {
+  position: absolute; top: 6px; bottom: 6px; left: 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+.nav-pill.animate { transition: transform .35s cubic-bezier(.4,0,.2,1), width .35s cubic-bezier(.4,0,.2,1), opacity .2s; }
+@media (prefers-reduced-motion: reduce) { .nav-pill.animate { transition: none; } }
 
 /* ---------- social squares (top-right) ---------- */
 .socials {
@@ -225,6 +233,7 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 }
 @media (max-width: 420px) {
   .nav { gap: 2px; padding: 4px; }
+  .nav-pill { top: 4px; bottom: 4px; }
   .nav a { padding: 8px 10px; font-size: 1rem; }
   .socials { gap: 10px; }
   .social { width: 44px; height: 44px; }

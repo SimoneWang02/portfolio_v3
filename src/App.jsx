@@ -1,22 +1,19 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import Home from "./pages/Home.jsx";
+import Experience from "./pages/Experience.jsx";
 import Projects from "./pages/Projects.jsx";
-import About from "./pages/About.jsx";
+import Nav from "./components/Nav.jsx";
 import SocialLinks from "./components/SocialLinks.jsx";
 
 export default function App() {
   return (
     <>
-      <nav className="nav">
-        <NavLink to="/" end>Home</NavLink>
-        <NavLink to="/projects">Projects</NavLink>
-        <NavLink to="/about">About</NavLink>
-      </nav>
+      <Nav />
       <SocialLinks />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/experience" element={<Experience />} />
         <Route path="/projects" element={<Projects />} />
-        <Route path="/about" element={<About />} />
         <Route path="*" element={<Home />} />
       </Routes>
     </>
