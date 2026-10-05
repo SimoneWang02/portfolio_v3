@@ -17,6 +17,11 @@ const FACE_GLSL = `
   const vec3 LID_COLOR = vec3(0.80, 0.40, 0.27);
   // lip tone (linear), sampled from the painted lower lip
   const vec3 LIP_COLOR = vec3(0.77, 0.30, 0.21);
+  const vec3 TEETH_COLOR = vec3(0.90, 0.88, 0.84);
+  // happy face: cheek blush under each eye (x offset from the middle, y), radii, and tone (linear)
+  const vec2 BLUSH = vec2(0.14, 0.688);
+  const vec2 BLUSH_SIZE = vec2(0.05, 0.02);
+  const vec3 BLUSH_COLOR = vec3(0.92, 0.28, 0.26);
   // hair tone (linear). Tripo projected the texture from the front, so the hidden undersides of the
   // fringe (and the inner sides of the hair at the temples) got skin painted on them; those faces are
   // found by their bind-pose normal and repainted with this.
@@ -41,8 +46,8 @@ const FACE_GLSL = `
   // lip seam, least-squares fit to the darkest row of the painted smile (rms error 0.0004):
   // slightly tilted, lowest just right of center
   float mouthLine(float x) { float d = x - 0.5; return MOUTH.y + 0.0071 * d + 1.49 * d * d; }
-  // opening height profile across the mouth: rounded ends, zero at +/- MOUTH_HALF_W
-  float mouthProfile(float x) { float u = (x - MOUTH.x) / MOUTH_HALF_W; return pow(max(1.0 - u * u, 0.0), 0.6); }
+  // opening height profile across the mouth: rounded ends, zero at +/- MOUTH_HALF_W; smaller k is fuller
+  float mouthProfile(float x, float k) { float u = (x - MOUTH.x) / MOUTH_HALF_W; return pow(max(1.0 - u * u, 0.0), k); }
 `;
 
 export function addFace(material, faceU) {
@@ -57,23 +62,25 @@ export function addFace(material, faceU) {
         vFaceN = normal;                                // bind-pose normal`);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>
-        uniform float uMouth, uBlink;
+        uniform float uMouth, uBlink, uHappy;
         varying vec3 vFace; varying vec3 vFaceN;
         ${FACE_GLSL}
-        // eyelids: upper lid comes down, lower lid comes up, meeting at the close line.
-        // returns (lid coverage, lash-line coverage)
+        // eyelids: upper lid comes down, lower lid comes up, meeting at the close line: a gentle downward
+        // curve for a blink, an upward arch for happy closed eyes (^ ^). returns (lid coverage, lash-line coverage)
         vec2 eyelid(vec2 c, float aa) {
           vec2 d = (vFace.xy - c) / EYE_SIZE;
           float r2 = dot(d, d);
-          if (r2 > 1.0 || uBlink < 0.01) return vec2(0.0);
+          float shut = max(uBlink, uHappy);
+          if (r2 > 1.0 || shut < 0.01) return vec2(0.0);
           float u2 = d.x * d.x;
           float arc = EYE_SIZE.y * sqrt(1.0 - u2);
-          float closeY = c.y + EYE_CLOSE_Y - 0.004 * (1.0 - u2);        // gentle downward curve
-          float top = mix(c.y + arc, closeY, uBlink);
-          float bot = mix(c.y - arc, closeY, uBlink);
+          float closeY = mix(c.y + EYE_CLOSE_Y - 0.004 * (1.0 - u2),
+                             c.y + EYE_SIZE.y * (0.85 * (1.0 - u2) - 0.4), uHappy);
+          float top = mix(c.y + arc, closeY, shut);
+          float bot = mix(c.y - arc, closeY, shut);
           float lid = max(smoothstep(top - aa, top + aa, vFace.y), 1.0 - smoothstep(bot - aa, bot + aa, vFace.y));
           lid *= 1.0 - smoothstep(0.85, 1.0, r2);                        // feather the outer edge
-          float th = mix(0.0008, 0.0022, smoothstep(0.1, 0.9, uBlink)) * (1.0 - 0.6 * u2);
+          float th = mix(mix(0.0008, 0.0022, smoothstep(0.1, 0.9, shut)), 0.0042, uHappy) * (1.0 - 0.6 * u2); // happy: bold arches
           float lash = (1.0 - smoothstep(th - aa, th + aa, abs(vFace.y - top))) * (1.0 - smoothstep(0.8, 1.0, r2));
           return vec2(lid, lash);
         }`)
@@ -87,12 +94,16 @@ export function addFace(material, faceU) {
           lidMask = l;
           diffuseColor.rgb = mix(diffuseColor.rgb, LID_COLOR, l.x);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.02, 0.02), l.y);
+          vec2 bd = (vec2(abs(vFace.x - 0.5), vFace.y) - BLUSH) / BLUSH_SIZE;
+          diffuseColor.rgb = mix(diffuseColor.rgb, BLUSH_COLOR, uHappy * 0.5 * (1.0 - smoothstep(0.1, 1.0, dot(bd, bd))) * gate);
           // mouth: the lips part at the seam; the cavity opens below it and the lower lip is redrawn
           // under the opening (covering the painted one), so it reads as the jaw dropping
-          float jawH = uMouth * MOUTH_DROP * mouthProfile(vFace.x);   // opening height at this x
+          // a happy grin opens wider and fuller, with the top teeth showing
+          float k = mix(0.6, 0.35, uHappy);
+          float jawH = max(uMouth, uHappy) * MOUTH_DROP * (1.0 + 0.9 * uHappy) * mouthProfile(vFace.x, k);
           float below = mouthLine(vFace.x) - vFace.y;                  // > 0 under the seam
           if (jawH > 0.0) {
-            float lipT = LIP_T * (0.5 + 0.5 * mouthProfile(vFace.x));  // thinner toward the corners
+            float lipT = LIP_T * (0.5 + 0.5 * mouthProfile(vFace.x, k)); // thinner toward the corners
             float lip = smoothstep(-faceAA, faceAA, below - jawH)
                       * (1.0 - smoothstep(lipT * 0.6, lipT + faceAA, below - jawH))
                       * smoothstep(0.0, 0.003, jawH) * gate;
@@ -102,8 +113,15 @@ export function addFace(material, faceU) {
             float tongue = smoothstep(0.5, 0.95, below / max(jawH, 1e-4));
             vec3 cavity = mix(vec3(0.06, 0.01, 0.015), vec3(0.45, 0.10, 0.12), tongue);
             diffuseColor.rgb = mix(diffuseColor.rgb, cavity, inside);
+            float teethH = jawH * 0.3 * smoothstep(0.0, 0.5, uHappy);
+            float teeth = (1.0 - smoothstep(teethH - faceAA, teethH + faceAA, below)) * inside;
+            vec3 teethCol = TEETH_COLOR * mix(0.7, 1.0, smoothstep(0.0, 0.4, (teethH - below) / max(teethH, 1e-4)));
+            diffuseColor.rgb = mix(diffuseColor.rgb, teethCol, teeth);
           }
         }`)
+      // shut lids are matte, so the sculpted eye rim under them doesn't glint
+      .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, 1.0, lidMask.x);`)
       // drop the normal map on the face (see faceRegion) and under a closed lid, so the eye's sculpted
       // rim doesn't show through the skin
       .replace("#include <normal_fragment_maps>", `

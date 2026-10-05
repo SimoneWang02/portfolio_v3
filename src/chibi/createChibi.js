@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { addFace } from "./face.js";
+import { spring, stepSpring } from "./spring.js";
 import { GREETING, NAME } from "../content.js";
 
 const MODEL_URL = "/chibi-rigged.glb"; // Tripo mesh + Mixamo rig, webp textures + meshopt (1.2 MB)
@@ -13,7 +14,11 @@ const faceU = {
   uBMin: { value: new THREE.Vector3() }, uBMax: { value: new THREE.Vector3(1, 1, 1) },
   uBlink: { value: 0 },  // 0 open .. 1 closed
   uMouth: { value: 0 },  // 0 closed .. 1 wide open
+  uHappy: { value: 0 },  // 0 .. 1: eyes shut in happy arches, a toothy grin, blush
 };
+
+// "eyesShut" morph (scripts/eye-morph.mjs): flattens the sculpted eyes so painted-shut lids lie smooth
+let eyesShut = null; // { influences, index }
 
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
 
@@ -134,6 +139,8 @@ function loadModel() {
         m.metalness = 0;
         m.metalnessMap = null;
         addFace(m, faceU);
+        const k = o.morphTargetDictionary?.eyesShut;
+        if (k !== undefined) eyesShut = { influences: o.morphTargetInfluences, index: k };
       });
       const arms = [rigArm(model, "Left"), rigArm(model, "Right")];
       model.userData.rig = {
@@ -187,8 +194,18 @@ function aimPalm(model, a, palmDir, w, tilt = 0) {
   a.hand.bone.quaternion.copy(a.hand.rest).slerp(_q4, w);
 }
 
+const GRAVITY = 16, HOP_H = 0.35;  // a full-power hop: 0.35 units high, ~0.4 s in the air
+
 const ARM_KEYS = ["out", "fwd", "bend", "curl", "twist"];
-function lerpPose(cur, target, k) { for (const key of ARM_KEYS) cur[key] += ((target[key] ?? 0) - cur[key]) * k; }
+const _js = spring(); // scratch for springPose
+// spring each joint angle of `cur` (velocities in `vel`) toward `target`
+function springPose(cur, vel, target, freq, zeta, dt) {
+  for (const key of ARM_KEYS) {
+    _js.x = cur[key]; _js.v = vel[key];
+    stepSpring(_js, target[key] ?? 0, freq, zeta, dt);
+    cur[key] = _js.x; vel[key] = _js.v;
+  }
+}
 
 /**
  * Mounts the chibi into `container` (which must be position: relative/absolute/fixed).
@@ -280,7 +297,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     body.add(model);
     onLoaded?.();
     hop(1); // say hi
-    later(() => { waveT = 0; }, 250); // ...and wave, then say the greeting once the wave is done
+    later(() => { waveT = 0; grin(1.6); }, 250); // ...and wave, beaming, then say the greeting once the wave is done
   }, (err) => {
     if (disposed) return;
     console.error(err);
@@ -296,22 +313,44 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     const r = container.getBoundingClientRect();
     cursorPx.set(e.clientX - r.left, e.clientY - r.top);
     cursorMoved = true;
+    wake();
     const clamp = THREE.MathUtils.clamp;
     pointer.set(
       clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1.1, 1.1),
       clamp(-((e.clientY - r.top) / r.height) * 2 + 1, -1.1, 1.1));
   }
   addEventListener("pointermove", onPointerMove);
+  addEventListener("keydown", wake); // typing in the chat
   const onPointerLeave = () => cursorPx.set(-1e4, -1e4);
   document.documentElement.addEventListener("pointerleave", onPointerLeave);
 
   let mood = "idle"; // idle | thinking | talking
-  let hopT = -1, hopPower = 1, spinT = -1;
+  // hop: a short crouch (anticipation), then a ballistic jump. Squash & stretch is a jelly spring kicked at
+  // takeoff and landing, and the head and arms get kicked too, so they lag behind and bob after the body.
+  let hopPhase = 0, hopT = 0, hopPower = 1, nextHop = 0; // phase 0: grounded, 1: crouching, 2: airborne
+  let hopY = 0, hopV = 0;
+  const squash = spring(1);
+  const spinS = spring(); let spinT = -1; // spin: wind up backwards, whip round, overshoot and settle back
   let nod = 0, nodVel = 0;           // spring for talking nods
-  const head = new THREE.Vector3();  // smoothed pitch/yaw/roll
-  let bodyYaw = 0;
-  // smoothed arm poses (screen-left / screen-right)
-  const armL = { out: 0.3, fwd: 0, bend: 0.2, curl: 0, twist: 0 }, armR = { out: 0.3, fwd: 0, bend: 0.2, curl: 0, twist: 0 };
+  const head = { x: spring(), y: spring(), z: spring() }; // pitch / yaw / roll
+  let lastYaw = 0;                   // head yaw target last frame, to blink on big gaze shifts
+  const bodyYaw = spring();
+  let breathPh = 0;                  // breathing / idle bob phase (slows down while asleep)
+  // arm poses (screen-left / screen-right) and their joint velocities
+  const armL = { out: 0.3, fwd: 0, bend: 0.2, curl: 0, twist: 0 }, armR = { ...armL };
+  const armLv = { out: 0, fwd: 0, bend: 0, curl: 0, twist: 0 }, armRv = { ...armLv };
+
+  // idle fidgets, a few seconds after the visitor goes still: glance around, bounce, tilt the head, stretch
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const FIDGET_LEN = { look: 2.4, bounce: 1.2, tilt: 1.8, stretch: 2.2 };
+  let fidget = null, fidgetT = 0, fidgetSide = 1, nextFidget = 8;
+  // dozing off after a longer quiet spell: eyes drift shut, head droops, breathing slows, z's float up
+  const SLEEP_AFTER = 30;
+  let lastActive = 0, asleep = false, sleepK = 0;
+  const zzz = document.createElement("div");
+  zzz.className = "zzz";
+  zzz.innerHTML = "<span>z</span><span>z</span><span>Z</span>";
+  container.appendChild(zzz);
 
   // high five: on a click within arm's reach, the arm on that side winds up by the ear,
   // pushes its palm out at the screen onto the click, holds a beat, then drops back down
@@ -322,7 +361,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   // wave hello when the page opens: the screen-right arm goes up beside the head and the hand waves
   let waveT = -1;                  // time into the wave, -1 when not playing
   let fiveT = -1, fiveHit = false; // time into the high five (-1: not playing); contact reaction fired
-  let happy = 0;                   // 1 right after the slap, decays
+  let grinUntil = 0, grinK = 0;    // happy face (^ ^ and a toothy grin), held until grinUntil
   let lean = 0;                    // forward lean into the slap
   const _px = new THREE.Vector2(), _px2 = new THREE.Vector2();
   function toPx(v, out) { v.project(camera); return out.set((v.x + 1) / 2 * width, (1 - v.y) / 2 * height); }
@@ -354,8 +393,24 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     return best;
   }
 
-  function hop(power = 1) { hopT = 0; hopPower = power; }
-  function spin() { spinT = 0; hop(1.2); }
+  function hop(power = 1) {
+    if (hopPhase) { nextHop = Math.max(nextHop, power); return; } // already hopping: go again on landing
+    hopPhase = 1; hopT = 0; hopPower = power;
+  }
+  function spin() { if (spinT < 0) spinT = 0; hop(1.2); grin(1.3); }
+  function grin(sec) { grinUntil = Math.max(grinUntil, clock.elapsedTime + sec); }
+  function startFidget(name) {
+    fidget = name; fidgetT = 0; fidgetSide = Math.random() < 0.5 ? -1 : 1;
+    if (name === "bounce") { hop(0.4); nextHop = 0.4; grin(1.2); }
+    if (name === "tilt") nudge(0.6);
+  }
+  // any sign of the visitor: wake up (with a start) and hold off fidgeting for a bit
+  function wake() {
+    const t = clock.elapsedTime;
+    lastActive = t;
+    nextFidget = Math.max(nextFidget, t + 4);
+    if (asleep) { asleep = false; hop(0.5); nudge(-1.2); }
+  }
   function nudge(amount = 1) { nodVel += 3.5 * amount; }
 
   // --- face: blinking + lip flap ---
@@ -391,6 +446,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   }
   function onClick(e) {
     if (!model) return;
+    if (asleep) { wake(); return; }
     const r = container.getBoundingClientRect();
     const px = new THREE.Vector2(e.clientX - r.left, e.clientY - r.top);
     const arm = canHighFive() && reachFor(px);
@@ -418,31 +474,59 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
 
-    // idle float + breathing
-    let y = Math.sin(t * 1.6) * 0.03;
-    let squash = 1 + Math.sin(t * 2.2) * 0.012;
+    // dozing off when idle and nobody's around for a while; wake() snaps out of it
+    const busy = waveT >= 0 || fiveT >= 0 || spinT >= 0 || hopPhase > 0;
+    if (!asleep && mood === "idle" && !busy && !fidget && t - lastActive > SLEEP_AFTER) asleep = true;
+    sleepK = lerp(sleepK, asleep ? 1 : 0, 1 - Math.exp(-dt * (asleep ? 0.7 : 8)));
+    zzz.classList.toggle("on", asleep && sleepK > 0.6);
 
-    // hop with squash & stretch
-    if (hopT >= 0) {
-      hopT += dt;
-      const d = 0.55;
-      const p = hopT / d;
-      if (p < 0.15) squash *= 1 - 0.12 * Math.sin((p / 0.15) * Math.PI) * hopPower;     // anticipation
-      else if (p < 1) {
-        const q = (p - 0.15) / 0.85;
-        y += Math.sin(q * Math.PI) * 0.35 * hopPower;
-        squash *= 1 + 0.08 * Math.sin(q * Math.PI) * hopPower;                         // stretch
-      } else if (p < 1.3) squash *= 1 - 0.1 * Math.sin(((p - 1) / 0.3) * Math.PI) * hopPower; // land
-      else hopT = -1;
+    // idle fidgets
+    if (fidget) {
+      fidgetT += dt;
+      if (fidgetT > FIDGET_LEN[fidget] || mood !== "idle" || asleep) fidget = null;
+    } else if (!reduceMotion && mood === "idle" && !busy && !asleep && t >= nextFidget) {
+      startFidget(["look", "bounce", "tilt", "stretch"][Math.floor(Math.random() * 4)]);
+      nextFidget = t + 7 + Math.random() * 8;
     }
+    // stretch fidget: arms up overhead with a yawn and eyes shut (0 .. 1 .. 0, back to rest 0.5 s before the end)
+    const stretchK = fidget === "stretch" ? Math.max(0, Math.min(1, fidgetT / 0.35, (FIDGET_LEN.stretch - 0.5 - fidgetT) / 0.35)) : 0;
+
+    // breathing: a bob and a gentle stretch on the same cycle (the body stretches just ahead of rising)
+    breathPh += dt * lerp(2.2, 1.3, sleepK);
+    const breath = Math.sin(breathPh);
+    let y = Math.sin(breathPh - 0.7) * 0.018 * (1 - sleepK);
+    let sqTarget = 1 + breath * 0.013 * (1 + sleepK) + stretchK * 0.04, sqFreq = 3.2, sqZeta = 0.3;
+
+    // hop: crouch, launch, fly, land
+    if (hopPhase === 1) {
+      hopT += dt;
+      sqTarget = 1 - 0.13 * Math.min(hopPower, 1); sqFreq = 7; sqZeta = 0.9;
+      if (hopT >= 0.1) {
+        hopPhase = 2; hopV = Math.sqrt(2 * GRAVITY * HOP_H * hopPower);
+        squash.v += 1.5 * hopPower;                                // spring out of the crouch
+        head.x.v -= 0.8 * hopPower;                                // the big head lags: tips back
+        armLv.out += 2.5 * hopPower; armRv.out += 2.5 * hopPower;  // arms fling out
+      }
+    } else if (hopPhase === 2) {
+      hopV -= GRAVITY * dt; hopY += hopV * dt;
+      sqTarget = 1 + 0.03 * Math.abs(hopV); sqFreq = 5; sqZeta = 0.7; // stretched along the motion
+      if (hopY <= 0) {
+        const impact = Math.min(-hopV, 4);
+        hopY = 0; hopPhase = 0;
+        squash.v -= 0.6 * impact;                                  // squash, then jiggle back
+        head.x.v += 0.5 * impact;                                  // head bobs forward
+        if (nextHop) { const p = nextHop; nextHop = 0; hop(p); }
+      }
+    }
+    stepSpring(squash, sqTarget, sqFreq, sqZeta, dt);
+    y += hopY;
 
     // spin
-    let spinYaw = 0;
     if (spinT >= 0) {
       spinT += dt;
-      const p = Math.min(spinT / 0.7, 1);
-      spinYaw = (1 - Math.pow(1 - p, 3)) * Math.PI * 2;
-      if (p >= 1) spinT = -1;
+      const windup = spinT < 0.12;
+      stepSpring(spinS, windup ? -0.35 : Math.PI * 2, windup ? 3 : 1.4, windup ? 0.9 : 0.68, dt);
+      if (!windup && Math.abs(spinS.x - Math.PI * 2) < 0.02 && Math.abs(spinS.v) < 0.3) { spinS.x = spinS.v = 0; spinT = -1; }
     }
 
     // blink: quick close, slower open; sometimes a double blink
@@ -458,15 +542,17 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
         if (doubleBlink) doubleBlink = false;
       }
     }
-    // thinking: eyes half-lidded while pondering; happy squint after a high five
-    happy = Math.max(0, happy - dt * 1.6);
-    faceU.uBlink.value = debugFace?.blink ?? Math.max(blink, mood === "thinking" ? 0.3 : 0, Math.min(happy * 1.5, 0.7));
+    // thinking: eyes half-lidded while pondering
+    faceU.uBlink.value = debugFace?.blink ?? Math.max(blink, mood === "thinking" ? 0.3 : 0, sleepK, stretchK > 0.6 ? 1 : 0);
+    grinK = lerp(grinK, t < grinUntil && mood === "idle" ? 1 : 0, 1 - Math.exp(-dt * 12));
+    faceU.uHappy.value = debugFace?.happy ?? grinK * (1 - sleepK);
+    if (eyesShut) eyesShut.influences[eyesShut.index] = Math.max(faceU.uBlink.value, faceU.uHappy.value);
 
     // mouth: syllable-ish flapping while there's text left to "say"
     const talkingNow = t < speakUntil;
     const target = talkingNow
       ? 0.25 + 0.75 * Math.abs(Math.sin(t * 13 + Math.sin(t * 4.3) * 2)) * (0.6 + 0.4 * Math.sin(t * 7.7))
-      : Math.min(happy * 0.8, 0.45); // little "yay!" after a high five
+      : stretchK * 0.8; // yawn
     mouth = lerp(mouth, target, 1 - Math.exp(-dt * 25));
     faceU.uMouth.value = debugFace?.mouth ?? mouth;
 
@@ -484,12 +570,18 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       tr = Math.sin(t * 2.1) * 0.08;
     } else {
       tr = Math.sin(t * 0.7) * 0.05 + (waveT >= 0 ? 0.1 : 0); // friendly head tilt, away from the waving hand
+      if (fidget === "look") {          // glance one way, then the other, then back
+        if (fidgetT < 1.1) { ty = fidgetSide * 0.7; tp = -0.1; } else if (fidgetT < 1.9) { ty = -fidgetSide * 0.45; tp = 0.05; }
+      } else if (fidget === "tilt") { tr = fidgetSide * 0.32; tp = -0.08; }
+      else if (stretchK > 0) tp = -0.3;
+      tp = lerp(tp, 0.42, sleepK); ty *= 1 - sleepK; tr = lerp(tr, 0.12, sleepK); // chin on the chest
     }
-    const k = 1 - Math.exp(-dt * 6);
-    head.set(lerp(head.x, tp, k), lerp(head.y, ty, k), lerp(head.z, tr, k));
+    if (Math.abs(ty - lastYaw) > 0.35 && blinkT < 0) { blinkT = 0; doubleBlink = false; } // blink on a big look
+    lastYaw = ty;
+    const hf = mood === "talking" ? 2 : 1.5;
+    stepSpring(head.x, tp, hf, 0.6, dt); stepSpring(head.y, ty, hf, 0.6, dt); stepSpring(head.z, tr, hf, 0.6, dt);
 
     // arms: relaxed at the sides, gesturing while talking, hand raised to the chin while thinking
-    const breath = Math.sin(t * 2.2);
     let tl = { out: 0.24, fwd: 0.06 + breath * 0.02, bend: 0.3 };
     let tr2 = { out: 0.24, fwd: 0.06 + breath * 0.02, bend: 0.3 };
     if (mood === "talking") {
@@ -498,10 +590,13 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     } else if (mood === "thinking") {
       tl = { out: -0.15, fwd: 0.75, bend: 2.3 };                      // hand up toward the chin
       tr2 = { out: 0.2, fwd: 0.35, bend: 1.3 };                       // other arm across the tummy
+    } else if (stretchK > 0) {
+      tl = tr2 = { out: 2.45, fwd: 0.3, bend: 0.35 };                 // reach up overhead
+    } else if (sleepK > 0.5) {
+      tl = tr2 = { out: 0.14, fwd: 0.1, bend: 0.15 };                 // arms hang limp
     }
-
-    // high five (idle only)
-    let ka = 1 - Math.exp(-dt * 5);
+    // joint springs: the gesturing arm (if any) gets its own stiffness; [freq Hz, damping]
+    let armS = [1.4, 0.55], gestS = armS, gestArm = null;
     // pointer cursor wherever a click does something (high five or spin). Raycasting the skinned mesh
     // is costly, so only re-check after the cursor moves, at most ~10x a second.
     if (model && cursorMoved && t - hoverAt > 0.1) {
@@ -512,19 +607,19 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     if (fiveT >= 0 && mood !== "idle") fiveT = -1; // a question interrupts it
     if (fiveT >= 0) {
       fiveT += dt;
-      let pose = null, rate = 8;
+      let pose = null, spr = [2.2, 0.7];
       const hit = fiveHit0;
       if (fiveT < 0.45) pose = { out: hit.out + 0.15, fwd: hit.fwd - 0.5, bend: 1.9 };   // wind up: hand back by the ear
-      else if (fiveT < 0.8) { pose = hit; rate = 22; }                                  // slap: palm onto the cursor
+      else if (fiveT < 0.8) { pose = hit; spr = [5, 0.45]; }                            // slap: palm onto the cursor
       else if (fiveT < 1.15) pose = { out: hit.out, fwd: hit.fwd - 0.1, bend: 0.7 };   // hold
       else fiveT = -1;                                                                                  // drop
       if (!fiveHit && fiveT > 0.55) {
-        fiveHit = true; happy = 1; hop(0.3); nudge(1.2);
+        fiveHit = true; grin(1.4); hop(0.3); nudge(1.2);
         burst(toPx(palmCenter(fiveArm), _px));
       }
       if (pose) {
         if (fiveArm === model.userData.rig.left) tl = pose; else tr2 = pose;
-        ka = 1 - Math.exp(-dt * rate);
+        gestArm = fiveArm; gestS = spr;
       }
     }
     // wave: elbow out at shoulder height, forearm up; the forearm swings from the elbow while the
@@ -541,7 +636,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
         const sw = Math.sin(ph) * Math.max(0, env);
         tr2 = { out: 1.65 + Math.sin(ph + 0.4) * 0.04 * env, fwd: 0.3, bend: 0.25, curl: 1.2 + sw * 0.35 };
         palmTilt = -0.1 - Math.sin(ph - 0.8) * 0.5 * Math.max(0, env); // fingers upright, rocking behind the forearm
-        ka = 1 - Math.exp(-dt * (waveT < W0 ? 9 : 16));
+        gestArm = model.userData.rig.right; gestS = waveT < W0 ? [2.5, 0.75] : [4.5, 0.8];
       } else {
         waveT = -1;
         nudge(1); speak(GREETING); // mouth only: the greeting text itself is shown in the chat panel
@@ -549,13 +644,14 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
     lean = lerp(lean, fiveT > 0.45 ? 0.06 : 0, 1 - Math.exp(-dt * (fiveT > 0.45 ? 18 : 6)));
     palmW = lerp(palmW, fiveT >= 0 || waveT >= 0 ? 1 : 0, 1 - Math.exp(-dt * 8));
-    lerpPose(armL, tl, ka); lerpPose(armR, tr2, ka);
+    const sl = model && gestArm === model.userData.rig.left ? gestS : armS, sr = model && gestArm === model.userData.rig.right ? gestS : armS;
+    springPose(armL, armLv, tl, sl[0], sl[1], dt); springPose(armR, armRv, tr2, sr[0], sr[1], dt);
 
     if (model) {
       const rig = model.userData.rig;
       const clamp = THREE.MathUtils.clamp;
       // head turn split between neck (40%) and head (60%) so it bends naturally
-      _e.set(clamp(head.x, -0.45, 0.45), clamp(head.y, -0.8, 0.8), clamp(head.z, -0.4, 0.4), "YXZ");
+      _e.set(clamp(head.x.x, -0.45, 0.5), clamp(head.y.x, -0.8, 0.8), clamp(head.z.x, -0.4, 0.4), "YXZ");
       _q.setFromEuler(_e);
       poseBone(rig.neck, _q2.identity().slerp(_q, 0.4));
       poseBone(rig.head, _q2.identity().slerp(_q, 0.6));
@@ -571,9 +667,11 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
 
     // body follows pointer a little; sways while thinking
-    bodyYaw = lerp(bodyYaw, pointer.x * 0.25 + (mood === "thinking" ? Math.sin(t * 1.5) * 0.08 : 0), k);
-    body.rotation.set(nod * 0.06 + lean, bodyYaw + spinYaw, Math.sin(t * 1.1) * 0.02 + (mood === "talking" ? Math.sin(t * 3) * 0.02 : 0));
-    body.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
+    stepSpring(bodyYaw, pointer.x * 0.25 * (1 - sleepK) + (mood === "thinking" ? Math.sin(t * 1.5) * 0.08 : 0), 1, 0.7, dt);
+    body.rotation.set(nod * 0.06 + lean + sleepK * 0.05, bodyYaw.x + spinS.x,
+      Math.sin(t * 1.1) * 0.02 + (mood === "talking" ? Math.sin(t * 3) * 0.02 : 0));
+    const sq = THREE.MathUtils.clamp(squash.x, 0.75, 1.3);
+    body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     root.position.y = y;
     if (model) {
       // move the tag by however the head moved from its rest pose (turns, nods, hops, spins, sway),
@@ -585,6 +683,10 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       const tagScale = Math.max(0, 1 - miniK * 1.6); // gone well before the box is done shrinking
       tag.group.scale.setScalar(tagScale);
       tag.group.visible = tagScale > 0.01;
+    }
+    if (asleep && model) {               // z's drift up from just above the head, off to one side
+      toPx(model.userData.rig.head.bone.getWorldPosition(_v).add(_v2.set(0.45, 0.55, 0)), _px);
+      zzz.style.left = `${_px.x}px`; zzz.style.top = `${_px.y}px`;
     }
     const lift = Math.max(0, y) / 0.35;                 // 0 on the ground .. 1 at the top of a hop
     blob.scale.setScalar(1 - 0.35 * lift);
@@ -612,18 +714,22 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   // dev-only handle for poking at poses from the console / test scripts
   let debugFace = null;
   if (import.meta.env.DEV) {
-    window.__chibi = { setMood: (m) => { mood = m; }, setFace: (f) => { debugFace = f; }, camera, renderer };
+    window.__chibi = {
+      setMood: (m) => { mood = m; }, setFace: (f) => { debugFace = f; }, camera, renderer,
+      fidget: startFidget, sleep: () => { lastActive = -1e3; }, hop, spin,
+    };
   }
 
   animate(); // start last, once everything it touches is declared
 
   return {
     // a question was asked: ponder
-    think() { mood = "thinking"; },
+    think() { wake(); mood = "thinking"; },
     // first streamed chunk arrived
-    startTalking() { mood = "talking"; hop(0.35); },
+    startTalking() { wake(); mood = "talking"; hop(0.35); },
     // `chunk` is the part of the answer that just arrived
     speakChunk(chunk) {
+      lastActive = clock.elapsedTime;
       nudge(/[.!?]/.test(chunk) ? 1.4 : 0.5); // nod on punctuation
       speak(chunk);
     },
@@ -638,10 +744,12 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       timers.forEach(clearTimeout);
       progressListeners.delete(progressFn);
       removeEventListener("pointermove", onPointerMove);
+      removeEventListener("keydown", wake);
       document.documentElement.removeEventListener("pointerleave", onPointerLeave);
       renderer.domElement.removeEventListener("click", onClick);
       resizeObserver.disconnect();
       tag.dispose();
+      zzz.remove();
       if (model) body.remove(model); // keep the cached model itself alive for the next mount
       envMap.dispose(); pmrem.dispose();
       blob.geometry.dispose(); blob.material.dispose(); blobTex.dispose();

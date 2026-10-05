@@ -21,7 +21,7 @@
 - [ ] Chat controls the site (navigate / filter via tool calls)
 - [ ] Chibi as a first-visit tour guide
 - [x] Suggested question chips in the chat
-- [ ] Chibi notices the cursor (partial: tracking, high-five, spin and wave done; idle sleep missing)
+- [x] Chibi notices the cursor (tracking, high-five, spin, wave, idle fidgets, dozing off)
 - [ ] Recruiter mode (job description → tailored pitch)
 - [ ] Terminal mode
 - [ ] Command palette (Ctrl+K)
