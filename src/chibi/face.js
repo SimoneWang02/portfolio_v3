@@ -29,7 +29,9 @@ const FACE_GLSL = `
   const float LID_GLOW = 0.9;   // self-lit lid color through the corner cracks (see eyelid use), matched by eye
   // lip tone (linear), sampled from the painted lower lip
   const vec3 LIP_COLOR = vec3(0.77, 0.30, 0.21);
-  const vec3 TEETH_COLOR = vec3(0.90, 0.88, 0.84);
+  const vec3 TEETH_COLOR = vec3(0.82, 0.80, 0.76);             // off-white: pure white glares under the key light
+  const vec3 MOUTH_DARK = vec3(0.05, 0.008, 0.012), MOUTH_DEEP = vec3(0.16, 0.025, 0.035);
+  const vec3 TONGUE_TOP = vec3(0.62, 0.14, 0.16), TONGUE_BASE = vec3(0.36, 0.06, 0.08);
   // happy face: cheek blush under each eye (x offset from the middle, y), radii, and tone (linear)
   const vec2 BLUSH = vec2(0.14, 0.688);
   const vec2 BLUSH_SIZE = vec2(0.05, 0.02);
@@ -111,7 +113,7 @@ export function addFace(material, faceU) {
         float gate = frontGate(vFace.z);
         diffuseColor.rgb = mix(diffuseColor.rgb, HAIR_COLOR, hairUnderside(vFace, normalize(vFaceN)));
         vec2 lidMask = vec2(0.0);
-        float lidBack = 0.0;
+        float lidBack = 0.0, mouthIn = 0.0;
         if (gate > 0.0 || !gl_FrontFacing) {
           vec2 l = max(eyelid(EYE_L, EYE_XR_L, TOP_L, BOT_L, LASH_L, faceAA),
                        eyelid(EYE_R, EYE_XR_R, TOP_R, BOT_R, LASH_R, faceAA)) * gate;
@@ -138,19 +140,31 @@ export function addFace(material, faceU) {
           float jawH = max(uMouth, uHappy) * MOUTH_DROP * (1.0 + 0.9 * uHappy) * mouthProfile(vFace.x, k);
           float below = mouthLine(vFace.x) - vFace.y;                  // > 0 under the seam
           if (jawH > 0.0) {
-            float lipT = LIP_T * (0.5 + 0.5 * mouthProfile(vFace.x, k)); // thinner toward the corners
+            float u = (vFace.x - MOUTH.x) / MOUTH_HALF_W;
+            // lower lip: redrawn under the opening; slimmer and closer to the skin tone in a grin
+            float lipT = LIP_T * (0.5 + 0.5 * mouthProfile(vFace.x, k)) * mix(1.0, 0.6, uHappy); // thinner toward the corners
             float lip = smoothstep(-faceAA, faceAA, below - jawH)
                       * (1.0 - smoothstep(lipT * 0.6, lipT + faceAA, below - jawH))
                       * smoothstep(0.0, 0.003, jawH) * gate;
-            diffuseColor.rgb = mix(diffuseColor.rgb, LIP_COLOR, lip);
+            diffuseColor.rgb = mix(diffuseColor.rgb, mix(LIP_COLOR, LID_COLOR, 0.3 * uHappy), lip);
             float inside = smoothstep(-faceAA, faceAA, below) * smoothstep(-faceAA, faceAA, jawH - below)
                          * smoothstep(0.0, 0.0015, jawH) * gate;
-            float tongue = smoothstep(0.5, 0.95, below / max(jawH, 1e-4));
-            vec3 cavity = mix(vec3(0.06, 0.01, 0.015), vec3(0.45, 0.10, 0.12), tongue);
+            mouthIn = inside;
+            float t = below / max(jawH, 1e-4);                           // 0 at the seam .. 1 at the lower lip
+            vec3 cavity = mix(MOUTH_DARK, MOUTH_DEEP, t);
+            // tongue: a rounded mound rising from the bottom, lit from above
+            float tu = u / 0.6;
+            float tongueTop = 1.0 - 0.45 * sqrt(max(1.0 - tu * tu, 0.0));
+            float tongue = smoothstep(tongueTop - 0.08, tongueTop + 0.08, t) * step(abs(tu), 1.0);
+            cavity = mix(cavity, mix(TONGUE_TOP, TONGUE_BASE, smoothstep(tongueTop, 1.0, t)), tongue);
             diffuseColor.rgb = mix(diffuseColor.rgb, cavity, inside);
-            float teethH = jawH * 0.3 * smoothstep(0.0, 0.5, uHappy);
-            float teeth = (1.0 - smoothstep(teethH - faceAA, teethH + faceAA, below)) * inside;
-            vec3 teethCol = TEETH_COLOR * mix(0.7, 1.0, smoothstep(0.0, 0.4, (teethH - below) / max(teethH, 1e-4)));
+            // upper teeth: tucked under the lip (shadowed at the top), rounded ends short of the corners,
+            // and a faint split between the front two
+            float teethH = jawH * 0.36 * smoothstep(0.0, 0.5, uHappy) * sqrt(max(1.0 - pow(u / 0.78, 2.0), 0.0));
+            float teeth = (1.0 - smoothstep(teethH - faceAA, teethH + faceAA, below)) * smoothstep(0.0, 0.0008, teethH) * inside;
+            float tt = below / max(teethH, 1e-4);
+            vec3 teethCol = TEETH_COLOR * mix(0.55, 1.0, smoothstep(0.0, 0.45, tt)) * mix(1.0, 0.85, smoothstep(0.75, 1.0, tt));
+            teethCol *= 1.0 - 0.18 * (1.0 - smoothstep(0.0, faceAA * 1.5, abs(vFace.x - MOUTH.x))) * step(0.2, tt);
             diffuseColor.rgb = mix(diffuseColor.rgb, teethCol, teeth);
           }
         }`)
@@ -159,7 +173,7 @@ export function addFace(material, faceU) {
         diffuseColor.rgb *= 1.0 - lidBack;`)
       // shut lids are matte, so the sculpted eye rim under them doesn't glint
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
-        roughnessFactor = mix(roughnessFactor, 1.0, lidMask.x);`)
+        roughnessFactor = mix(roughnessFactor, 1.0, max(lidMask.x, mouthIn)); // the mouth too: no glints inside`)
       // drop the normal map on the face (see faceRegion) and under a closed lid, so the eye's sculpted
       // rim doesn't show through the skin
       .replace("#include <normal_fragment_maps>", `
