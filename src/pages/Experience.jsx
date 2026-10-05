@@ -18,7 +18,7 @@ function Project({ p }) {
   return (
     <article className="tl-card reveal">
       <p className="tl-dates">{p.dates}</p>
-      <h3><a href={p.url} {...external}>{p.name}</a></h3>
+      <h3>{p.url ? <a href={p.url} {...external}>{p.name}</a> : p.name}</h3>
       <p className="tl-about">{p.about}</p>
       <ul className="tl-tags" aria-label="Stack">
         {p.tags.map((t) => <li key={t}>{t}</li>)}
