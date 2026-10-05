@@ -4,6 +4,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { addFace } from "./face.js";
 import { spring, stepSpring } from "./spring.js";
+import { mouthFor, durationOf, paceFor, isSelfWord } from "./speech.js";
 import { GREETING, NAME } from "../content.js";
 
 const MODEL_URL = "/chibi-rigged.glb"; // Tripo mesh + Mixamo rig, webp textures + meshopt (1.2 MB)
@@ -147,6 +148,7 @@ function loadModel() {
         neck: rigBone(model, "mixamorigNeck"),
         head: rigBone(model, "mixamorigHead"),
         spine: rigBone(model, "mixamorigSpine2"),
+        legs: [rigBone(model, "mixamorigLeftUpLeg"), rigBone(model, "mixamorigRightUpLeg")], // swung while walking in
         // head's rest pose in the model's parent space (the model isn't parented yet), for the name tag
         headRest: {
           pos: model.getObjectByName("mixamorigHead").getWorldPosition(new THREE.Vector3()),
@@ -182,6 +184,21 @@ function poseArm(a, { out, fwd, bend, curl = 0, twist = 0 }) {
     .multiply(_q3.setFromAxisAngle(a.foreDir, twist * a.sign));
   poseBone(a.fore, _q);
 }
+
+// talking gestures: [screen-left arm, screen-right arm] (see poseArm)
+// (fwd + bend ~1.6 holds the forearm level, at about waist height)
+const REST = { out: 0.3, fwd: 0.2, bend: 0.5 };
+const LOW = { out: 0.26, fwd: 0.15, bend: 0.45 };
+const GESTURES = {
+  rest: [REST, REST],
+  explainL: [{ out: 0.35, fwd: 0.45, bend: 1.15 }, LOW],                                  // one hand out, explaining
+  explainR: [LOW, { out: 0.35, fwd: 0.45, bend: 1.15 }],
+  open: [{ out: 0.85, fwd: 0.35, bend: 0.9 }, { out: 0.85, fwd: 0.35, bend: 0.9 }],       // arms open wide
+  present: [{ out: 0.2, fwd: 0.5, bend: 1.1 }, { out: 0.2, fwd: 0.5, bend: 1.1 }],        // both hands forward
+  chest: [{ out: -0.05, fwd: 0.35, bend: 1.85 }, LOW],                                    // hand on chest: "I", "my"
+  shrug: [{ out: 0.75, fwd: 0.25, bend: 1.3 }, { out: 0.75, fwd: 0.25, bend: 1.3 }],       // on a question
+};
+const TALK_GESTURES = ["explainL", "explainR", "open", "present", "rest"];
 
 // turn the wrist so the palm faces `palmDir` with the fingers pointing up (model space), blended by `w`;
 // `tilt` leans the fingers outward (+) / inward (-)
@@ -296,8 +313,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     model = m;
     body.add(model);
     onLoaded?.();
-    hop(1); // say hi
-    later(() => { waveT = 0; grin(1.6); }, 250); // ...and wave, beaming, then say the greeting once the wave is done
+    if (miniT) greet(); else startEntrance(); // plays even with reduced motion: it's brief, and the site's first impression
   }, (err) => {
     if (disposed) return;
     console.error(err);
@@ -332,6 +348,13 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   const squash = spring(1);
   const spinS = spring(); let spinT = -1; // spin: wind up backwards, whip round, overshoot and settle back
   let nod = 0, nodVel = 0;           // spring for talking nods
+  // talking: the reply is "said" letter by letter (see speech.js); words, commas and full stops cue
+  // gestures, nods and a new head pose for each phrase
+  let speech = "", speechPos = 0, talkDone = false, talkEnd = 0;
+  let gesture = GESTURES.rest, nextGesture = 0, beatArm = null;
+  const talkHead = { p: 0, y: 0, r: 0 };                   // head pose offset, held for a phrase
+  // thinking: chin on hand, glancing from side to side with a chin tap now and then; a thought bubble
+  let thinkSide = 1, nextPonder = 0, tapT = -1;
   const head = { x: spring(), y: spring(), z: spring() }; // pitch / yaw / roll
   let lastYaw = 0;                   // head yaw target last frame, to blink on big gaze shifts
   const bodyYaw = spring();
@@ -351,6 +374,11 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   zzz.className = "zzz";
   zzz.innerHTML = "<span>z</span><span>z</span><span>Z</span>";
   container.appendChild(zzz);
+  const thoughts = document.createElement("div");
+  thoughts.className = "thoughts";
+  thoughts.innerHTML = "<i></i><i></i><i></i>";
+  container.appendChild(thoughts);
+  let aha = null;                  // the "!" popping up as an answer starts
 
   // high five: on a click within arm's reach, the arm on that side winds up by the ear,
   // pushes its palm out at the screen onto the click, holds a beat, then drops back down
@@ -363,6 +391,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   let fiveT = -1, fiveHit = false; // time into the high five (-1: not playing); contact reaction fired
   let grinUntil = 0, grinK = 0;    // happy face (^ ^ and a toothy grin), held until grinUntil
   let lean = 0;                    // forward lean into the slap
+  let talkLean = 0;                // leaning in while talking
   const _px = new THREE.Vector2(), _px2 = new THREE.Vector2();
   function toPx(v, out) { v.project(camera); return out.set((v.x + 1) / 2 * width, (1 - v.y) / 2 * height); }
   // the arm that can reach stage pixel `px` for a high five, or null
@@ -376,7 +405,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     // beside the body, from shoulder height down to about the waist (not the head, torso or legs)
     return dx > reach * 0.15 && dy > -reach * 0.1 && dy < reach * 1.3 && d < reach * 2 ? arm : null;
   }
-  const canHighFive = () => model && fiveT < 0 && waveT < 0 && mood === "idle" && spinT < 0;
+  const canHighFive = () => model && !enter && fiveT < 0 && waveT < 0 && mood === "idle" && spinT < 0;
   // the palm sits just above the wrist once the hand is turned fingers-up
   const palmCenter = (arm) => arm.hand.bone.getWorldPosition(_v).add(_v2.set(0, 0.07, 0));
   // search arm poses (held forward, toward the screen) for the one whose hand lands nearest `px`
@@ -392,6 +421,28 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
     return best;
   }
+
+  // say hi: a hop, then a wave (beaming), then the greeting once the wave is done
+  function greet() {
+    hop(1);
+    later(() => { waveT = 0; grin(1.6); }, 250);
+  }
+
+  // entrance: hidden just past the stage's left edge, lean in to peek at the visitor, then pop out
+  // and hop-walk to the middle, where it turns to face them and greets
+  // peek timeline (s): a cautious peek, duck back, a bolder peek with a blink and a grin, then step out
+  const PEEK_IN = 0.4, PEEK_DUCK = 1.15, PEEK_AGAIN = 1.55, PEEK_OUT = 3;
+  let enter = null;                       // { t, x } while entering
+  const peekS = spring(), walkK = spring(); // lean (body roll) / how much it's walking (0..1)
+  const tagS = spring(1);                 // name tag size: hidden while peeking, pops up on stepping out
+  let walkPh = 0;                         // leg swing phase
+  function startEntrance() {
+    const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * fullZ * (width / height);
+    // the screen's left edge, allowing for the view being shifted right (shiftPx)
+    enter = { t: 0, x: -halfW * (1 + 2 * shiftPx / width) - 0.5 }; // just far enough out that the big head is hidden
+    tagS.x = 0;
+  }
+  function endEntrance() { enter = null; root.position.x = 0; }
 
   function hop(power = 1) {
     if (hopPhase) { nextHop = Math.max(nextHop, power); return; } // already hopping: go again on landing
@@ -415,12 +466,39 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
 
   // --- face: blinking + lip flap ---
   let nextBlink = 1.5, blinkT = -1, doubleBlink = false;
-  let speakUntil = 0, mouth = 0;
+  let mouth = 0;
   const clock = new THREE.Clock();
-  // keep the mouth moving for roughly as long as it'd take to say the text (~14 chars/sec)
   function speak(text) {
-    const now = clock.elapsedTime;
-    speakUntil = Math.max(speakUntil, now) + text.length / 14;
+    if (speechPos > 400) { const k = Math.floor(speechPos); speech = speech.slice(k); speechPos -= k; }
+    speech += text;
+  }
+  function newPhrase(strength) {     // a fresh head pose (and a nod) for the next phrase
+    talkHead.p = (Math.random() - 0.5) * 0.12 * strength;
+    talkHead.y = (Math.random() - 0.5) * 0.3 * strength;
+    talkHead.r = (Math.random() - 0.5) * 0.25 * strength;
+    nudge(0.5 + 0.7 * strength);
+  }
+  // react to having just "said" speech[i]
+  function onSaid(i) {
+    const ch = speech[i], t = clock.elapsedTime;
+    if (/[.!?\n]/.test(ch)) {
+      newPhrase(1);
+      gesture = ch === "?" ? GESTURES.shrug : GESTURES.rest;
+      nextGesture = t + 0.7;
+      if (ch === "!") grin(0.35);
+      if (Math.random() < 0.5 && blinkT < 0) blinkT = 0;
+    } else if (/[,;:]/.test(ch)) newPhrase(0.5);
+    else if (/[\p{L}\d]/u.test(ch) && (i === 0 || /\s/.test(speech[i - 1]))) { // a word starts
+      const word = speech.slice(i).match(/^[\p{L}\d']+/u)?.[0] ?? "";
+      if (isSelfWord(word)) { gesture = GESTURES.chest; nextGesture = t + 0.9; }
+      else if (t >= nextGesture) {
+        let g;
+        do g = GESTURES[TALK_GESTURES[Math.floor(Math.random() * TALK_GESTURES.length)]]; while (g === gesture);
+        gesture = g; nextGesture = t + 1 + Math.random() * 1.2;
+      } else if (Math.random() < 0.35) {                      // a beat: flick the gesturing hand on the word
+        (beatArm === "left" ? armLv : armRv).bend += 1.4; nudge(0.25);
+      }
+    }
   }
 
   // high-five impact: a ring, sparks and a little "nice!" popping out of the palm (CSS-animated, see .hi5)
@@ -445,7 +523,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     return raycaster.intersectObject(model, true).length > 0;
   }
   function onClick(e) {
-    if (!model) return;
+    if (!model || enter) return;
     if (asleep) { wake(); return; }
     const r = container.getBoundingClientRect();
     const px = new THREE.Vector2(e.clientX - r.left, e.clientY - r.top);
@@ -467,6 +545,17 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   let miniT = mini ? 1 : 0, miniK = miniT;
   // full-size framing, frozen while mini so the box's changing aspect mid-shrink doesn't make it jump
   let fullZ = 5.2, fullY = 1.05;
+  // full size, the chibi can stand right of the stage's center (CSS --chibi-shift, px): the camera's view is
+  // shifted instead of the chibi, so it still faces the camera head-on
+  let shiftPx = 0, viewKey = "";
+  const readShift = () => { shiftPx = parseFloat(getComputedStyle(container).getPropertyValue("--chibi-shift")) || 0; };
+  readShift();
+  function applyShift() {
+    const off = Math.round(shiftPx * (1 - miniK)), key = `${width},${height},${off}`;
+    if (key === viewKey) return;
+    viewKey = key;
+    if (off) camera.setViewOffset(width, height, -off, 0, width, height); else camera.clearViewOffset();
+  }
   const frameFull = (aspect) => { fullZ = aspect < 0.8 ? 7 : 5.2; fullY = aspect < 0.8 ? 1.2 : 1.05; };
   frameFull(innerWidth / innerHeight);
 
@@ -474,8 +563,10 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
 
+    // thinking or talking counts as activity: no fidgeting or dozing off straight after an answer
+    if (mood !== "idle") { lastActive = t; nextFidget = Math.max(nextFidget, t + 5); }
     // dozing off when idle and nobody's around for a while; wake() snaps out of it
-    const busy = waveT >= 0 || fiveT >= 0 || spinT >= 0 || hopPhase > 0;
+    const busy = !!enter || waveT >= 0 || fiveT >= 0 || spinT >= 0 || hopPhase > 0;
     if (!asleep && mood === "idle" && !busy && !fidget && t - lastActive > SLEEP_AFTER) asleep = true;
     sleepK = lerp(sleepK, asleep ? 1 : 0, 1 - Math.exp(-dt * (asleep ? 0.7 : 8)));
     zzz.classList.toggle("on", asleep && sleepK > 0.6);
@@ -529,6 +620,31 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       if (!windup && Math.abs(spinS.x - Math.PI * 2) < 0.02 && Math.abs(spinS.v) < 0.3) { spinS.x = spinS.v = 0; spinT = -1; }
     }
 
+    // entrance: peek, then walk in with little hopping steps
+    let peekLean = 0, enterYaw = 0;
+    if (enter && model) {
+      enter.t += dt;
+      if (enter.t >= PEEK_IN && enter.t < PEEK_OUT) {
+        const at = (s) => enter.t - dt < s && enter.t >= s;   // crossed time s this frame
+        peekLean = enter.t < PEEK_DUCK ? 0.26 : enter.t < PEEK_AGAIN ? 0 : 0.44; enterYaw = 0.3;
+        if (at(PEEK_AGAIN + 0.5) && blinkT < 0) { blinkT = 0; doubleBlink = true; } // curious blink
+        if (at(PEEK_AGAIN + 0.9)) grin(0.6);                                          // spotted you
+      } else if (enter.t >= PEEK_OUT) {
+        if (enter.t - dt < PEEK_OUT) { hop(0.7); grin(0.8); } // pop out from behind the edge
+        enterYaw = 0.9;                                        // 3/4 turned toward the middle
+        const speed = 1.7 * Math.min(1, 0.35 + -enter.x / 0.6); // slow down for the last bit
+        enter.x = Math.min(0, enter.x + speed * dt);
+        if (!hopPhase && enter.t > PEEK_OUT + 0.4) hop(0.2);   // a little bounce per step
+      }
+      root.position.x = enter.x;
+      if (enter.x === 0) { endEntrance(); greet(); }
+    }
+    stepSpring(peekS, peekLean, 3, 0.55, dt);
+    stepSpring(walkK, enter && enter.t > PEEK_OUT ? 1 : 0, 3, 1, dt);
+    stepSpring(tagS, enter && enter.t < PEEK_OUT ? 0 : 1, 3, 0.45, dt);
+    walkPh += dt * 10.5 * walkK.x;
+    const legSwing = Math.sin(walkPh) * 0.45 * walkK.x;
+
     // blink: quick close, slower open; sometimes a double blink
     if (blinkT < 0 && t >= nextBlink) { blinkT = 0; doubleBlink = Math.random() < 0.2; }
     let blink = 0;
@@ -544,17 +660,33 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
     // thinking: eyes half-lidded while pondering
     faceU.uBlink.value = debugFace?.blink ?? Math.max(blink, mood === "thinking" ? 0.3 : 0, sleepK, stretchK > 0.6 ? 1 : 0);
-    grinK = lerp(grinK, t < grinUntil && mood === "idle" ? 1 : 0, 1 - Math.exp(-dt * 12));
+    grinK = lerp(grinK, t < grinUntil ? (mood === "idle" ? 1 : mood === "talking" ? 0.6 : 0) : 0, 1 - Math.exp(-dt * 12));
     faceU.uHappy.value = debugFace?.happy ?? grinK * (1 - sleepK);
     // flatten the eyes as far as the lids are shut (happy eyes are fully shut from uHappy 0.35; see face.js)
     if (eyesShut) eyesShut.influences[eyesShut.index] = debugFace?.morph ?? Math.max(faceU.uBlink.value, THREE.MathUtils.smoothstep(faceU.uHappy.value, 0, 0.35));
 
-    // mouth: syllable-ish flapping while there's text left to "say"
-    const talkingNow = t < speakUntil;
-    const target = talkingNow
-      ? 0.25 + 0.75 * Math.abs(Math.sin(t * 13 + Math.sin(t * 4.3) * 2)) * (0.6 + 0.4 * Math.sin(t * 7.7))
-      : stretchK * 0.8; // yawn
-    mouth = lerp(mouth, target, 1 - Math.exp(-dt * 25));
+    // mouth: lip sync to the letter being "said"; a yawn during the stretch fidget
+    let target = stretchK * 0.8;
+    if (speechPos < speech.length) {
+      const i0 = Math.floor(speechPos), ch = speech[i0];
+      speechPos += dt * paceFor(speech.length - speechPos) / durationOf(ch);
+      for (let i = i0; i < Math.min(Math.floor(speechPos), speech.length); i++) onSaid(i);
+      target = mouthFor(ch) * (0.7 + 0.3 * Math.sin(Math.PI * (speechPos % 1)));
+    }
+    mouth = lerp(mouth, target, 1 - Math.exp(-dt * 22));
+    // the reply's done once it's all been said
+    if (mood === "talking" && talkDone && speechPos >= speech.length) {
+      if (!talkEnd) talkEnd = t + 0.5;
+      else if (t >= talkEnd) { mood = "idle"; gesture = GESTURES.rest; }
+    }
+
+    // thinking: every couple of seconds glance to the other side or tap the chin
+    if (mood === "thinking" && t >= nextPonder) {
+      if (Math.random() < 0.6) thinkSide = -thinkSide; else tapT = 0;
+      nextPonder = t + 1.6 + Math.random() * 1.4;
+    }
+    if (tapT >= 0) { tapT += dt; if (tapT > 0.7 || mood !== "thinking") tapT = -1; }
+    thoughts.classList.toggle("on", mood === "thinking");
     faceU.uMouth.value = debugFace?.mouth ?? mouth;
 
     // talking nod spring
@@ -563,12 +695,12 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
 
     // head targets
     let tp = -pointer.y * 0.35, ty = pointer.x * 0.5, tr = 0;   // with body yaw: ~45° max toward the chat
-    if (mood === "thinking") {
-      tp = -0.18; ty = 0.25 + Math.sin(t * 0.8) * 0.1; tr = 0.28;      // look up & tilt, pondering
-    } else if (mood === "talking") {
-      tp = tp * 0.3 + nod * 0.5 + Math.sin(t * 7) * 0.03;
-      ty = ty * 0.3 + Math.sin(t * 1.3) * 0.12;
-      tr = Math.sin(t * 2.1) * 0.08;
+    if (mood === "thinking") {          // look up and off to one side, head tilted, pondering
+      tp = -0.2 + Math.sin(t * 1.3) * 0.03; ty = thinkSide * 0.3; tr = thinkSide * 0.22 + 0.06;
+    } else if (mood === "talking") {    // eye contact, with the phrase's head pose; dips a little on open vowels
+      tp = tp * 0.3 + talkHead.p + nod * 0.5 + mouth * 0.05;
+      ty = ty * 0.3 + talkHead.y;
+      tr = talkHead.r;
     } else {
       tr = Math.sin(t * 0.7) * 0.05 + (waveT >= 0 ? 0.1 : 0); // friendly head tilt, away from the waving hand
       if (fidget === "look") {          // glance one way, then the other, then back
@@ -577,6 +709,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       else if (stretchK > 0) tp = -0.3;
       tp = lerp(tp, 0.42, sleepK); ty *= 1 - sleepK; tr = lerp(tr, 0.12, sleepK); // chin on the chest
     }
+    if (enter) { tp = enter.t < PEEK_OUT ? 0.05 : -0.05; ty = -enterYaw * 0.6; tr = enter.t < PEEK_OUT ? 0.25 * peekS.x : 0; }
     if (Math.abs(ty - lastYaw) > 0.35 && blinkT < 0) { blinkT = 0; doubleBlink = false; } // blink on a big look
     lastYaw = ty;
     const hf = mood === "talking" ? 2 : 1.5;
@@ -586,18 +719,21 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     let tl = { out: 0.24, fwd: 0.06 + breath * 0.02, bend: 0.3 };
     let tr2 = { out: 0.24, fwd: 0.06 + breath * 0.02, bend: 0.3 };
     if (mood === "talking") {
-      tl = { out: 0.38 + Math.sin(t * 1.9) * 0.1, fwd: 0.3 + Math.sin(t * 2.3) * 0.15, bend: 0.9 + Math.sin(t * 3.1) * 0.35 };
-      tr2 = { out: 0.38 + Math.sin(t * 1.7 + 2) * 0.1, fwd: 0.3 + Math.sin(t * 2.1 + 1) * 0.15, bend: 0.9 + Math.sin(t * 2.7 + 2) * 0.35 };
+      [tl, tr2] = gesture;
+      beatArm = gesture[0].fwd > gesture[1].fwd ? "left" : "right";   // beats go to the more raised hand
     } else if (mood === "thinking") {
-      tl = { out: -0.15, fwd: 0.75, bend: 2.3 };                      // hand up toward the chin
-      tr2 = { out: 0.2, fwd: 0.35, bend: 1.3 };                       // other arm across the tummy
+      const tap = tapT >= 0 ? Math.sin(tapT * 28) * 0.12 * Math.sin(Math.PI * tapT / 0.7) : 0;
+      tl = { out: -0.15, fwd: 0.75, bend: 2.3 + tap };                // hand up at the chin (tapping it)
+      tr2 = { out: 0.15, fwd: 0.25, bend: 0.9 };                      // other arm relaxed, a little bent
     } else if (stretchK > 0) {
       tl = tr2 = { out: 2.45, fwd: 0.3, bend: 0.35 };                 // reach up overhead
     } else if (sleepK > 0.5) {
       tl = tr2 = { out: 0.14, fwd: 0.1, bend: 0.15 };                 // arms hang limp
     }
+    if (walkK.x > 0.01) { tl = { ...tl, fwd: tl.fwd - legSwing * 0.8 }; tr2 = { ...tr2, fwd: tr2.fwd + legSwing * 0.8 }; } // arms swing with the steps
     // joint springs: the gesturing arm (if any) gets its own stiffness; [freq Hz, damping]
     let armS = [1.4, 0.55], gestS = armS, gestArm = null;
+    if (mood === "thinking" && model) { gestArm = model.userData.rig.left; gestS = [4, 0.5]; }
     // pointer cursor wherever a click does something (high five or spin). Raycasting the skinned mesh
     // is costly, so only re-check after the cursor moves, at most ~10x a second.
     if (model && cursorMoved && t - hoverAt > 0.1) {
@@ -657,6 +793,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       poseBone(rig.neck, _q2.identity().slerp(_q, 0.4));
       poseBone(rig.head, _q2.identity().slerp(_q, 0.6));
       poseBone(rig.spine, _q.setFromAxisAngle(X, -breath * 0.015 + nod * 0.05));
+      poseBone(rig.legs[0], _q.setFromAxisAngle(X, legSwing)); poseBone(rig.legs[1], _q.setFromAxisAngle(X, -legSwing));
       poseArm(rig.left, armL);
       poseArm(rig.right, armR);
       rig.left.hand.bone.quaternion.copy(rig.left.hand.rest); rig.right.hand.bone.quaternion.copy(rig.right.hand.rest);
@@ -668,9 +805,14 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
 
     // body follows pointer a little; sways while thinking
-    stepSpring(bodyYaw, pointer.x * 0.25 * (1 - sleepK) + (mood === "thinking" ? Math.sin(t * 1.5) * 0.08 : 0), 1, 0.7, dt);
-    body.rotation.set(nod * 0.06 + lean + sleepK * 0.05, bodyYaw.x + spinS.x,
-      Math.sin(t * 1.1) * 0.02 + (mood === "talking" ? Math.sin(t * 3) * 0.02 : 0));
+    // body: follows the pointer a little, leans in while talking (rolling with the head), sways while thinking
+    // (while entering: turned toward the middle instead)
+    stepSpring(bodyYaw, enter ? enterYaw : pointer.x * 0.25 * (1 - sleepK) + (mood === "thinking" ? thinkSide * 0.08 + Math.sin(t * 1.5) * 0.04 : 0),
+      enter ? 2.5 : 1, 0.7, dt);
+    talkLean = lerp(talkLean, mood === "talking" ? 0.035 : 0, 1 - Math.exp(-dt * 4));
+    body.rotation.set(nod * 0.06 + lean + talkLean + sleepK * 0.05, bodyYaw.x + spinS.x,
+      Math.sin(t * 1.1) * 0.02 + (mood === "talking" ? head.z.x * 0.2 : 0)
+      - peekS.x + Math.sin(walkPh) * 0.06 * walkK.x); // leaning in to peek (top toward the middle); waddling
     const sq = THREE.MathUtils.clamp(squash.x, 0.75, 1.3);
     body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     root.position.y = y;
@@ -681,17 +823,20 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       headBone.getWorldQuaternion(_q).multiply(_q2.copy(headRest.q).invert());
       tag.group.quaternion.copy(_q);
       tag.group.position.set(0, TAG_Y, 0).sub(headRest.pos).applyQuaternion(_q).add(headBone.getWorldPosition(_v));
-      const tagScale = Math.max(0, 1 - miniK * 1.6); // gone well before the box is done shrinking
+      const tagScale = Math.max(0, 1 - miniK * 1.6) * Math.max(0, tagS.x); // gone well before the box is done shrinking
       tag.group.scale.setScalar(tagScale);
       tag.group.visible = tagScale > 0.01;
     }
-    if (asleep && model) {               // z's drift up from just above the head, off to one side
+    // emotes beside the head: z's while asleep, a thought bubble while thinking, the "!" when an answer comes
+    if (model && (asleep || mood === "thinking" || aha)) {
       toPx(model.userData.rig.head.bone.getWorldPosition(_v).add(_v2.set(0.45, 0.55, 0)), _px);
-      zzz.style.left = `${_px.x}px`; zzz.style.top = `${_px.y}px`;
+      for (const el of [zzz, thoughts, aha]) if (el) { el.style.left = `${_px.x}px`; el.style.top = `${_px.y}px`; }
     }
     const lift = Math.max(0, y) / 0.35;                 // 0 on the ground .. 1 at the top of a hop
+    blob.visible = !!model;
+    blob.position.x = root.position.x;
     blob.scale.setScalar(1 - 0.35 * lift);
-    blob.material.opacity = 1 - 0.5 * lift;
+    blob.material.opacity = (1 - 0.5 * lift) * THREE.MathUtils.clamp(tagS.x, 0, 1); // no shadow giving the peek away
 
     // keep framing nice on narrow screens; closer in when mini
     miniK = lerp(miniK, miniT, 1 - Math.exp(-dt * 6));
@@ -699,14 +844,16 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     // mini: frames y -0.1 .. 2.7 so the head stays in the small canvas at the top of a hop (+stretch)
     camera.position.z = lerp(fullZ, 4.9, miniK);
     camera.lookAt(0, lerp(fullY, 1.3, miniK), 0);
+    applyShift();
 
     renderer.render(scene, camera);
     frame = requestAnimationFrame(animate);
   }
 
   const resizeObserver = new ResizeObserver(() => {
+    readShift();
     width = container.clientWidth || 1; height = container.clientHeight || 1;
-    camera.aspect = width / height; camera.updateProjectionMatrix();
+    camera.aspect = width / height; camera.updateProjectionMatrix(); applyShift();
     renderer.setSize(width, height);
     renderer.render(scene, camera); // resizing clears the canvas; redraw now so it doesn't flicker mid-animation
   });
@@ -718,27 +865,49 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     window.__chibi = {
       setMood: (m) => { mood = m; }, setFace: (f) => { debugFace = f; }, camera, renderer,
       fidget: startFidget, sleep: () => { lastActive = -1e3; }, hop, spin,
+      gesture: (name) => { mood = "talking"; gesture = GESTURES[name]; nextGesture = Infinity; }, enter: startEntrance,
     };
   }
 
   animate(); // start last, once everything it touches is declared
 
-  return {
+  const controls = {
     // a question was asked: ponder
-    think() { wake(); mood = "thinking"; },
-    // first streamed chunk arrived
-    startTalking() { wake(); mood = "talking"; hop(0.35); },
+    think() {
+      wake(); mood = "thinking";
+      speech = ""; speechPos = 0;
+      thinkSide = Math.random() < 0.5 ? -1 : 1; nextPonder = clock.elapsedTime + 1.2;
+    },
+    // first streamed chunk arrived: "aha!"
+    startTalking() {
+      wake();
+      if (mood === "thinking") {
+        aha?.remove();
+        aha = document.createElement("div");
+        aha.className = "aha"; aha.textContent = "!";
+        container.appendChild(aha);
+        const el = aha;
+        later(() => { el.remove(); if (aha === el) aha = null; }, 900);
+      }
+      mood = "talking"; talkDone = false; talkEnd = 0;
+      gesture = GESTURES.rest; nextGesture = 0; newPhrase(0.6);
+      hop(0.35);
+    },
     // `chunk` is the part of the answer that just arrived
     speakChunk(chunk) {
       lastActive = clock.elapsedTime;
-      nudge(/[.!?]/.test(chunk) ? 1.4 : 0.5); // nod on punctuation
       speak(chunk);
     },
+    // the answer has fully arrived (or failed): finish saying it, then relax
     done() {
-      later(() => { if (mood === "talking") mood = "idle"; }, 600);
+      talkDone = true;
+      if (mood === "thinking") mood = "idle";
     },
     // switch between the full-size stage and the small companion
-    setMini(on) { miniT = on ? 1 : 0; },
+    setMini(on) {
+      miniT = on ? 1 : 0;
+      if (on && enter) { endEntrance(); greet(); } // the mini framing only covers the middle
+    },
     dispose() {
       disposed = true;
       cancelAnimationFrame(frame);
@@ -750,7 +919,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       renderer.domElement.removeEventListener("click", onClick);
       resizeObserver.disconnect();
       tag.dispose();
-      zzz.remove();
+      zzz.remove(); thoughts.remove(); aha?.remove();
       if (model) body.remove(model); // keep the cached model itself alive for the next mount
       envMap.dispose(); pmrem.dispose();
       blob.geometry.dispose(); blob.material.dispose(); blobTex.dispose();
@@ -758,4 +927,6 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       renderer.domElement.remove();
     },
   };
+  if (import.meta.env.DEV) window.__chibi.controls = controls;
+  return controls;
 }

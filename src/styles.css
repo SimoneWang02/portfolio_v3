@@ -169,8 +169,40 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   20% { opacity: 1 }
   100% { transform: translate(28px, -60px) rotate(12deg); opacity: 0 }
 }
+/* thinking: a thought bubble with bouncing dots beside the head; "!" pops when the answer starts */
+.thoughts {
+  position: absolute; display: flex; gap: 5px; padding: 9px 12px; margin: -46px 0 0 6px;
+  background: #fff; border-radius: 999px; box-shadow: 0 4px 14px rgba(30,27,75,.14);
+  pointer-events: none; opacity: 0; transform: scale(.4); transform-origin: 0 100%;
+  transition: opacity .2s, transform .35s cubic-bezier(.2,1.6,.4,1);
+}
+.thoughts::before, .thoughts::after {
+  content: ""; position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(30,27,75,.12);
+}
+.thoughts::before { width: 10px; height: 10px; left: -2px; bottom: -8px; }
+.thoughts::after { width: 6px; height: 6px; left: -9px; bottom: -15px; }
+.thoughts.on { opacity: 1; transform: none; }
+.thoughts i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent2); animation: think-dot 1.2s ease-in-out infinite; }
+.thoughts i:nth-child(2) { animation-delay: .15s; } .thoughts i:nth-child(3) { animation-delay: .3s; }
+@keyframes think-dot { 0%, 60%, 100% { transform: translateY(0); opacity: .45 } 30% { transform: translateY(-5px); opacity: 1 } }
+.stage.mini .thoughts { transform-origin: 0 100%; scale: .7; }
+.aha {
+  position: absolute; margin: -58px 0 0 4px; pointer-events: none;
+  font-weight: 700; font-size: 2rem; line-height: 1; color: #f5a623;
+  text-shadow: 0 2px 0 #fff, 0 0 8px #fff;
+  animation: aha .9s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+.stage.mini .aha { font-size: 1.4rem; margin-top: -40px; }
+@keyframes aha {
+  0% { transform: translateY(8px) scale(.3) rotate(-12deg); opacity: 0 }
+  25% { transform: translateY(0) scale(1.15) rotate(8deg); opacity: 1 }
+  70% { transform: translateY(-4px) scale(1) rotate(8deg); opacity: 1 }
+  100% { transform: translateY(-12px) scale(1) rotate(8deg); opacity: 0 }
+}
 @media (prefers-reduced-motion: reduce) {
   .zzz span { animation: none; opacity: 1; }
+  .thoughts { transition: opacity .2s; transform: none; } .thoughts i { animation: none; opacity: .8; }
+  .aha { animation: none; }
   .zzz span:nth-child(2) { transform: translate(14px, -24px); } .zzz span:nth-child(3) { transform: translate(30px, -52px); }
 }
 
@@ -250,7 +282,8 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 
 @media (min-width: 900px) and (max-width: 1199px) {
   .blurb { max-width: 300px; font-size: 1rem; }
-  .stage { left: 200px; width: calc(100vw - 200px); }
+  /* full width (so the chibi can walk in from the screen edge), but stood 100px right of center, clear of the blurb */
+  .stage { --chibi-shift: 100px; }
 }
 /* narrow screens: dock becomes a full-width bottom sheet, chibi stays visible above */
 @media (max-width: 899px) {

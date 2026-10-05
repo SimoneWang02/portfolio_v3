@@ -7,14 +7,12 @@ export default function ChibiStage({ controlsRef, mini }) {
   const stage = useRef(null);
   const chibi = useRef(null);
   const startMini = useRef(mini); // only read on mount; later changes go through setMini
-  const [status, setStatus] = useState("waking up…");
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const c = createChibi(stage.current, {
       mini: startMini.current,
-      onProgress: (f) => setStatus(`waking up… ${Math.round(f * 100)}%`),
-      onLoaded: () => setStatus(null),
-      onError: setStatus,
+      onError: setError,
     });
     chibi.current = controlsRef.current = c;
     return () => {
@@ -27,7 +25,8 @@ export default function ChibiStage({ controlsRef, mini }) {
 
   return (
     <div className={`stage${mini ? " mini" : ""}`} ref={stage}>
-      {status && <div className="loading">{status}</div>}
+      {/* nothing while the model loads: the chibi makes its own entrance, peeking in from the side */}
+      {error && <div className="loading">{error}</div>}
     </div>
   );
 }
