@@ -28,17 +28,17 @@ export const EXPERIENCE = [
     about: ["Software Consulting Startup", "Modena, Italy"],
     dates: "Nov 2022 – May 2026",
     ladder: ["Intern", "Junior", "Senior"],
-    growth: "Started as an intern and grew into owning client projects end-to-end, from client meetings to production deploys, building management software across 9 client projects in insurance, packaging, social care, sports, education, mobility, and automotive.",
+    growth: "Started as an intern and grew into owning client projects end-to-end, from client meetings to production deploys, building management software across 7 client projects in insurance, packaging, social care, sports, education, and mobility.",
     projects: [
       {
         name: "StartClaims",
         url: "https://start-claims.peritek.eu",
         about: "Insurance Claims Platform for Peritek Srl",
         dates: "Dec 2022 – May 2026",
-        summary: "Tech lead for the merger of two claims platforms and primary developer from 2025; automated claim intake from 7 insurers and cut the main dashboard's load time from 16 s to about 50 ms.",
+        summary: "Primary developer from 2025; automated claim intake from 7 insurers and cut the main dashboard's load time from 16 s to about 50 ms.",
         tags: ["Angular", "Laravel", "MySQL", "Insurer APIs", "Performance", "GIS"],
         points: [
-          "Appointed technical lead for a merger integrating StartClaims with a 30-year legacy loss-adjuster system, consolidating two multi-million-euro platforms; built the multi-firm foundation (parent/child firms with shared visibility, per-firm roles, linked accounts with one-click switching), worked weekly onsite with the company owners, deployed production updates independently, and shaped roadmap priorities from workflow observation and stakeholder interviews.",
+          "Worked weekly onsite with the company owners, shaped roadmap priorities from workflow observation and stakeholder interviews, and deployed production updates independently; built multi-firm support (parent/child firms with shared visibility, per-firm roles, linked accounts with one-click switching).",
           "Automated claim-assignment intake from 7 insurers (Generali, Unipol, Allianz, Reale, Groupama, ITAS, Zurich): official APIs where available, such as Unipol's event queue with mTLS certificates and JWT where appraisals, documents, and messages are sent back, and reverse-engineered portal clients elsewhere. Jobs run every 30 minutes with deduplication, auto-acceptance, document download, and routing into the right workflow step; regex parsers with unit tests handle insurers that still send PDFs.",
           "Cut the workflow dashboard's production load time from 16 s to about 50 ms by replacing correlated subqueries on a 5M-row files table with a single batched fetch; added covering, composite, and FULLTEXT indexes, removed a 1.5 s filesort on 50K+ claims with a generated column, reduced queries per page from 31 to 9 (22 to 2 on the Digital Desk), and built an in-browser benchmark mode for diagnosing production.",
           "Digitized the claims-archiving workflow, replacing paper-based Word templates with a web-based Digital Desk and an in-platform appraisal builder (property, liability, and motor templates) that computes deductibles, uncovered percentages, and indemnity limits, reuses data from prior claims, and generates Word reports with auto-sized, rotatable photo tables.",
@@ -67,7 +67,7 @@ export const EXPERIENCE = [
         url: "",
         about: "Attendance & Billing Platform for Residential Care Communities",
         dates: "Oct 2023 – May 2026",
-        summary: "Built the monthly billing engine that invoices public health services for guests in residential care communities.",
+        summary: "Built the monthly billing engine that invoices public health services for 600 residents of residential care communities.",
         tags: ["Laravel", "Inertia.js", "React", "Mantine"],
         points: [
           "Built the monthly billing engine: effective-dated fee histories so past months keep the rates in force at the time, tiered automatic fees, apartment quotas split across five payers (health services, municipality, mental-health center, family, and guest) with configurable deduction sources, and annual absence-allowance caps.",
@@ -96,7 +96,7 @@ export const EXPERIENCE = [
         url: "https://iscrizioni.coopaccento.it",
         about: "Regional Summer Camp Online Enrollment Portal",
         dates: "Feb 2023 – May 2026",
-        summary: "Turned an overwhelming registration form into a multi-step enrollment wizard and built the Carta Docente voucher module.",
+        summary: "Rebuilt registration as a multi-step enrollment wizard for a portal that handled 13,900+ enrollments for 8,600+ children across 223 summer camps.",
         tags: ["Laravel", "Blade", "Tailwind CSS", "SOAP"],
         points: [
           "Rebuilt an overwhelming registration form into a Tailwind multi-step enrollment wizard with Stripe, PayPal, and Satispay checkout, duplicate-enrollment detection, and per-center age checks.",
