@@ -8,7 +8,8 @@ import { dirname } from "node:path";
 
 const [, , src, out] = process.argv;
 
-// eye centers and radii as fractions of the bind-pose bounding box; keep in sync with FACE_GLSL in face.js
+// eye centers (fractions of the bind-pose bounding box; as EYE_L / EYE_R in face.js) and radii of an
+// ellipse covering each painted eye with a margin
 const EYES = [[0.3755, 0.7255], [0.6185, 0.7255]];
 const EYE_SIZE = [0.066, 0.026];
 const FLAT = 1.1, FADE = 1.4;           // fully flattened inside FLAT (in eye radii), fading out by FADE

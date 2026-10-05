@@ -546,7 +546,8 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     faceU.uBlink.value = debugFace?.blink ?? Math.max(blink, mood === "thinking" ? 0.3 : 0, sleepK, stretchK > 0.6 ? 1 : 0);
     grinK = lerp(grinK, t < grinUntil && mood === "idle" ? 1 : 0, 1 - Math.exp(-dt * 12));
     faceU.uHappy.value = debugFace?.happy ?? grinK * (1 - sleepK);
-    if (eyesShut) eyesShut.influences[eyesShut.index] = Math.max(faceU.uBlink.value, faceU.uHappy.value);
+    // flatten the eyes as far as the lids are shut (happy eyes are fully shut from uHappy 0.35; see face.js)
+    if (eyesShut) eyesShut.influences[eyesShut.index] = debugFace?.morph ?? Math.max(faceU.uBlink.value, THREE.MathUtils.smoothstep(faceU.uHappy.value, 0, 0.35));
 
     // mouth: syllable-ish flapping while there's text left to "say"
     const talkingNow = t < speakUntil;
