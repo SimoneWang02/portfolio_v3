@@ -1,0 +1,34 @@
+# Portfolio feature ideas
+
+## Common
+
+- [x] Contact links (LinkedIn, GitHub, email)
+- [x] Résumé download (PDF)
+- [ ] Skills / tech stack overview section
+- [ ] Case-study pages per project (partial: cards have expandable details, no dedicated pages)
+- [x] Live demo / source links on projects
+- [ ] Project filters by label or tech
+- [ ] Dark/light theme toggle
+- [ ] Testimonials
+- [ ] Blog / notes
+- [ ] Bilingual EN/IT toggle
+- [ ] SEO / social previews (meta description, Open Graph, favicon)
+- [x] Reduced-motion support and lazy-loaded images
+
+## Creative
+
+- [x] Chibi reacts to the chat (thinking / talking moods)
+- [ ] Chat controls the site (navigate / filter via tool calls)
+- [ ] Chibi as a first-visit tour guide
+- [x] Suggested question chips in the chat
+- [ ] Chibi notices the cursor (partial: tracking, high-five, spin and wave done; idle sleep missing)
+- [ ] Recruiter mode (job description → tailored pitch)
+- [ ] Terminal mode
+- [ ] Command palette (Ctrl+K)
+- [ ] Easter eggs (Konami dance, time-of-day outfits)
+- [ ] 3D room / desk scene
+- [ ] "Now" page
+- [ ] Live GitHub activity
+- [ ] Scroll-driven timeline with a walking chibi
+- [ ] Guestbook
+- [ ] Spotify "currently listening"
