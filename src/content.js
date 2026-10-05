@@ -25,17 +25,17 @@ export const EXPERIENCE = [
   {
     kind: "work",
     title: "Bonobo Srl",
-    about: ["Web & Mobile Development Agency", "Modena, Italy"],
+    about: ["Software Consulting Startup", "Modena, Italy"],
     dates: "Nov 2022 – May 2026",
     ladder: ["Intern", "Junior", "Senior"],
-    growth: "Started as an intern and grew into owning client projects end-to-end, from client meetings to production deploys.",
+    growth: "Started as an intern and grew into owning client projects end-to-end, from client meetings to production deploys, building management software across 9 client projects in insurance, packaging, social care, sports, education, mobility, and automotive.",
     projects: [
       {
         name: "StartClaims",
         url: "https://start-claims.peritek.eu",
         about: "Insurance Claims Platform for Peritek Srl",
         dates: "Dec 2022 – May 2026",
-        summary: "Tech lead for the merger of two claims platforms; automated claim intake from 7 insurers and cut the main dashboard's load time from 16 s to about 50 ms.",
+        summary: "Tech lead for the merger of two claims platforms and primary developer from 2025; automated claim intake from 7 insurers and cut the main dashboard's load time from 16 s to about 50 ms.",
         tags: ["Angular", "Laravel", "MySQL", "Insurer APIs", "Performance", "GIS"],
         points: [
           "Appointed technical lead for a merger integrating StartClaims with a 30-year legacy loss-adjuster system, consolidating two multi-million-euro platforms; built the multi-firm foundation (parent/child firms with shared visibility, per-firm roles, linked accounts with one-click switching), worked weekly onsite with the company owners, deployed production updates independently, and shaped roadmap priorities from workflow observation and stakeholder interviews.",
@@ -52,7 +52,7 @@ export const EXPERIENCE = [
         url: "https://docpack.it",
         about: "Cloud Platform for Packaging Design Teams",
         dates: "Feb 2025 – May 2026",
-        summary: "Built most of the core platform from scratch in a TypeScript monorepo, plus client proposal review on the Adobe PDF Embed API.",
+        summary: "Primary developer: built most of the core platform from scratch in a TypeScript monorepo, plus client proposal review on the Adobe PDF Embed API.",
         tags: ["React", "NestJS", "TypeScript", "PostgreSQL", "Adobe PDF Embed API"],
         points: [
           "Led development for the first two months, then supervised a junior developer while coordinating roadmap execution, bimonthly releases, and client testing cycles.",
