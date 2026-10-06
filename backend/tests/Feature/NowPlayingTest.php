@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -73,5 +74,15 @@ class NowPlayingTest extends TestCase
         config(['services.spotify.refresh_token' => 'refresh']);
         Http::fake(['*' => Http::response('nope', 500)]);
         $this->getJson('/api/now-playing')->assertNoContent();
+    }
+
+    public function test_a_rejected_access_token_is_refreshed_next_time(): void
+    {
+        Cache::put('spotify:access-token', 'revoked', now()->addMinutes(50));
+        Http::fake(['api.spotify.com/*' => Http::response(null, 401)]);
+
+        $this->getJson('/api/now-playing')->assertNoContent();
+
+        $this->assertFalse(Cache::has('spotify:access-token'));
     }
 }

@@ -52,6 +52,9 @@ class SpotifyClient
     {
         $response = Http::withToken($this->accessToken())->timeout(5)->get("https://api.spotify.com/v1/$path", $query);
         if ($response->failed()) {
+            if ($response->status() === 401) {
+                Cache::forget('spotify:access-token'); // revoked or expired early: fetch a new one next time instead of failing for 50 minutes
+            }
             throw new RuntimeException("Spotify $path returned {$response->status()}");
         }
 

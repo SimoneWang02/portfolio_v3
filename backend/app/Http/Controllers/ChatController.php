@@ -49,6 +49,9 @@ class ChatController extends Controller
         $data = $request->validate([
             'conversationId' => ['required', 'uuid'],
             'messages' => ['required', 'array'],
+            'messages.*' => ['array'],
+            'messages.*.role' => ['nullable', 'string'],
+            'messages.*.content' => ['nullable', 'string'],
         ]);
         $budget = self::MAX_HISTORY_CHARS;
         $history = collect($data['messages'])
@@ -105,6 +108,9 @@ class ChatController extends Controller
                     }
                     // no tools on the follow-up, so the model can't loop
                     $ai->stream($messages, null, $emit);
+                }
+                if (trim($reply) === '') {
+                    echo self::OOPS_MARK.'glitch'; // the model said nothing; don't leave the visitor with an empty bubble
                 }
             } catch (Throwable $e) {
                 report($e);

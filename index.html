@@ -20,6 +20,9 @@
 <link rel="icon" href="/icon.png" type="image/png" sizes="192x192" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- the chibi model: fetch it alongside the JS instead of after three.js has loaded (crossorigin matches three's fetch) -->
+<link rel="preload" href="/chibi-rigged.glb" as="fetch" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>

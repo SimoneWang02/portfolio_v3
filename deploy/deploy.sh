@@ -5,7 +5,11 @@ cd "$(dirname "$0")/.."
 
 git pull --ff-only
 npm ci
-npm run build
+# build beside the live dist/ and swap it in, so visitors never hit a half-emptied folder mid-build
+rm -rf dist.new dist.old
+npx vite build --outDir dist.new
+[ -d dist ] && mv dist dist.old
+mv dist.new dist && rm -rf dist.old
 
 cd backend
 composer install --no-dev --optimize-autoloader --no-interaction

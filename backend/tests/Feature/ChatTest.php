@@ -152,5 +152,17 @@ class ChatTest extends TestCase
     public function test_rejects_bad_payloads(): void
     {
         $this->postJson('/api/chat', ['conversationId' => 'nope', 'messages' => []])->assertStatus(422);
+        $this->postJson('/api/chat', [
+            'conversationId' => (string) Str::uuid(),
+            'messages' => [['role' => 'user', 'content' => ['not', 'text']]],
+        ])->assertStatus(422);
+    }
+
+    public function test_an_empty_reply_sends_the_glitch_marker(): void
+    {
+        Http::fake(['*' => Http::response($this->sse([['content' => '']]))]);
+
+        $this->assertSame("\x1eglitch", $this->ask('hi')->streamedContent());
+        $this->assertSame(1, Message::count()); // only the visitor's message
     }
 }

@@ -339,7 +339,9 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   const scene = new THREE.Scene();
   // soft studio reflections so PBR surfaces don't go dark/blotchy
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const room = new RoomEnvironment();
+  const envMap = pmrem.fromScene(room, 0.04).texture;
+  room.dispose(); // only needed to bake the env map
   scene.environment = envMap;
   scene.environmentIntensity = 0.45;
 

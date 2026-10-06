@@ -1,27 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { createChibi } from "../chibi/createChibi.js";
 
 // Hosts the three.js chibi; hands its controls (think/startTalking/speakChunk/done) to the parent via controlsRef.
 // Full-bleed on Home; `mini` shrinks it (animated) into a small bottom-left companion for the other pages.
+// three.js is most of the bundle, so it loads as its own chunk: the page and chat show up without waiting for it.
 export default function ChibiStage({ controlsRef, mini }) {
   const stage = useRef(null);
   const chibi = useRef(null);
-  const startMini = useRef(mini); // only read on mount; later changes go through setMini
+  const miniNow = useRef(mini); // read when the chibi is created, which can be after a navigation
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const c = createChibi(stage.current, {
-      mini: startMini.current,
-      onError: setError,
+    let c = null, cancelled = false;
+    import("../chibi/createChibi.js").then(({ createChibi }) => {
+      if (cancelled) return;
+      c = createChibi(stage.current, {
+        mini: miniNow.current,
+        onError: setError,
+      });
+      chibi.current = controlsRef.current = c;
+    }, (err) => {
+      console.error(err);
+      if (!cancelled) setError("Couldn't load the chibi");
     });
-    chibi.current = controlsRef.current = c;
     return () => {
+      cancelled = true;
+      if (!c) return;
       c.dispose();
       if (controlsRef.current === c) controlsRef.current = null;
     };
   }, [controlsRef]);
 
-  useEffect(() => { chibi.current?.setMini(mini); }, [mini]);
+  useEffect(() => { miniNow.current = mini; chibi.current?.setMini(mini); }, [mini]);
 
   return (
     <div className={`stage${mini ? " mini" : ""}`} ref={stage}>
