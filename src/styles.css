@@ -29,7 +29,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   padding: 10px 20px; border-radius: 999px; color: var(--ink); text-decoration: none;
   font-size: 1.1rem; transition: background .15s, color .3s;
 }
-.nav a:hover:not(.active) { background: rgba(59,130,246,.1); }
+@media (hover: hover) { .nav a:hover:not(.active) { background: rgba(59,130,246,.1); } }
 .nav a.active { color: #fff; }
 /* sliding highlight behind the active link (positioned by Nav.jsx) */
 .nav-pill {
@@ -52,14 +52,17 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
 .social svg { width: 30px; height: 30px; }
 .social-text { font-weight: 700; font-size: 1.35rem; letter-spacing: .02em; line-height: 1; }
-.social:hover { transform: translateY(-2px); color: #fff; background: var(--brand); border-color: var(--brand); }
 .social.linkedin { --brand: #0a66c2; }
 .social.github { --brand: #181717; }
-/* Handshake's lime (#d3fb52) vanishes on white: black mark at rest, black-on-lime on hover */
 .social.handshake { --brand: #000; }
-.social.handshake:hover { color: #000; background: #d3fb52; border-color: #d3fb52; }
 .social.email { --brand: var(--ink); }
 .social.cv { --brand: var(--ink); }
+/* only where there's a real hover: on touch screens it would stick after a tap */
+@media (hover: hover) {
+  .social:hover { transform: translateY(-2px); color: #fff; background: var(--brand); border-color: var(--brand); }
+  /* Handshake's lime (#d3fb52) vanishes on white: black mark at rest, black-on-lime on hover */
+  .social.handshake:hover { color: #000; background: #d3fb52; border-color: #d3fb52; }
+}
 
 /* ---------- home: full-bleed chibi, chat docked bottom-right ---------- */
 .home { height: 100dvh; overflow: hidden; }
@@ -103,7 +106,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   box-shadow: 0 0 0 1px rgba(30,27,75,.08), var(--shadow);
   animation: np-in .4s ease-out; transition: transform .2s;
 }
-.now-playing:hover { transform: translateY(-2px); }
+@media (hover: hover) { .now-playing:hover { transform: translateY(-2px); } }
 @keyframes np-in { from { opacity: 0; transform: translateY(8px); } }
 .np-art { flex: none; width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: #e5e7eb; }
 .np-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
@@ -255,7 +258,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   background: transparent; border: 0; border-bottom: 1px solid rgba(30,27,75,.08);
 }
 .dock.minimized .dock-header { border-bottom: 0; }
-.dock-header:hover { background: rgba(59,130,246,.06); }
+@media (hover: hover) { .dock-header:hover { background: rgba(59,130,246,.06); } }
 .dock-title { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
 .dock-title strong { font-weight: 600; font-size: .95rem; }
 .chevron { width: 20px; height: 20px; color: var(--muted); transition: transform .2s; }
@@ -297,7 +300,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   border: 1.5px solid rgba(59,130,246,.4); background: #fff; color: var(--accent2);
   transition: background .15s;
 }
-.chip:hover { background: rgba(59,130,246,.08); }
+@media (hover: hover) { .chip:hover { background: rgba(59,130,246,.08); } }
 .ask {
   display: flex; gap: 8px; align-items: center; padding: 10px 12px;
   border-top: 1px solid rgba(30,27,75,.08);
@@ -314,7 +317,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   transition: transform .15s;
 }
 .ask button svg { width: 18px; height: 18px; }
-.ask button:not([disabled]):hover { transform: scale(1.06); }
+@media (hover: hover) { .ask button:not([disabled]):hover { transform: scale(1.06); } }
 .chat-note { margin: -4px 12px 8px; font-size: 11px; color: var(--muted); text-align: center; }
 button[disabled] { opacity: .5; cursor: not-allowed; }
 
@@ -323,10 +326,11 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
   /* full width (so the chibi can walk in from the screen edge), but stood 100px right of center, clear of the blurb */
   .stage { --chibi-shift: 100px; }
 }
-/* narrow screens: dock becomes a full-width bottom sheet, chibi stays visible above */
+/* narrow screens: the dock becomes a full-width bottom sheet (minimized by default, see App.jsx) */
 @media (max-width: 899px) {
-  /* keep clear of the socials column */
-  .blurb { left: 16px; right: calc(var(--social) + 32px); top: 96px; max-width: none; font-size: .95rem; }
+  :root { --social: 44px; --social-gap: 10px; }
+  .social svg { width: 22px; height: 22px; }
+  .blurb { font-size: .95rem; }
   .blurb li { gap: 10px; }
   .blurb li + li { margin-top: 4px; }
   .status { margin-top: 10px; }
@@ -336,23 +340,70 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
   .stage.mini { top: calc(100dvh - var(--mini-h) - var(--mini-gap) - var(--dock-header)); }
   .dock-body { height: min(55dvh, 460px); }
   .dock.minimized .dock-body { height: 0; }
+  /* one swipeable row of suggestions, so they don't eat the short sheet's chat log */
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .chip { flex: none; }
 }
-@media (max-width: 699px) {
-  .socials { flex-direction: column; }
+/* phones upright: everything stacks. Socials in a row under the nav (scrolling away with the page, the nav
+   stays), then the intro, then the chibi in the space left above the dock */
+@media (max-width: 899px) and (min-height: 501px) {
+  :root {
+    --nav-h: 53px; /* .nav's rendered height */
+    --top-clear: calc(var(--edge) + var(--nav-h) + 10px + var(--social) + 20px); /* below the socials row */
+    --hero-h: calc(var(--top-clear) + 175px); /* below the intro */
+  }
+  /* both centered across the top */
+  .nav, .socials { left: 0; right: 0; width: max-content; margin: 0 auto; }
+  .socials { position: absolute; top: calc(var(--edge) + var(--nav-h) + 10px); }
+  /* the intro centered as one block under them: icons stay lined up, the badge centers below */
+  .blurb { left: 0; right: 0; top: var(--top-clear); width: max-content; max-width: calc(100% - 32px); margin: 0 auto; }
+  .blurb .status { display: flex; width: fit-content; margin-inline: auto; }
+  .blurb, .socials { transition: opacity .3s, visibility .3s; }
+  .stage:not(.mini) { top: var(--hero-h); height: calc(100dvh - var(--hero-h) - var(--dock-header)); }
+  /* chat open on Home: the intro and socials make way, and the chibi moves up between the nav and the sheet */
+  body:has(.home):has(.dock:not(.minimized)) :is(.blurb, .socials) { opacity: 0; visibility: hidden; }
+  body:has(.dock:not(.minimized)) .stage:not(.mini) {
+    top: calc(var(--edge) + var(--nav-h));
+    height: calc(100dvh - var(--edge) - var(--nav-h) - min(55dvh, 460px) - var(--dock-header));
+  }
 }
 @media (max-width: 420px) {
+  :root { --nav-h: 44px; }
   .nav { gap: 2px; padding: 4px; }
   .nav-pill { top: 4px; bottom: 4px; }
   .nav a { padding: 8px 10px; font-size: 1rem; }
-  .socials { gap: 10px; }
-  .social { width: 44px; height: 44px; }
+}
+/* phones on their side: too short to stack, so the desktop arrangement in compact form. Intro left, chibi
+   between it and the chat, which docks bottom-right (minimized by default) */
+@media (max-height: 500px) and (orientation: landscape) {
+  :root { --social: 44px; --social-gap: 10px; }
   .social svg { width: 22px; height: 22px; }
+  .nav { gap: 2px; padding: 4px; }
+  .nav-pill { top: 4px; bottom: 4px; }
+  .nav a { padding: 8px 10px; font-size: 1rem; }
+  .blurb { top: 80px; max-width: min(300px, 36vw); font-size: .9rem; }
+  .blurb li + li { margin-top: 4px; }
+  .status { margin-top: 10px; }
+  .now-playing { display: none; }
+  .dock { left: auto; right: clamp(16px, 3vw, 32px); width: min(340px, 45vw); }
+  .dock-body { height: calc(100dvh - 2 * var(--edge) - var(--social) - var(--dock-header)); }
+  .dock.minimized .dock-body { height: 0; }
+  .stage { --mini-w: 110px; --mini-h: 155px; --chibi-shift: -40px; }
+  .stage:not(.mini) { top: 64px; height: calc(100dvh - 64px); } /* under the nav, so the name tag clears it */
+  .stage.mini { top: calc(100dvh - var(--mini-h) - var(--mini-gap)); }
 }
 
 /* ---------- stub pages ---------- */
 /* bottom padding clears the chat dock's header bar (full-width on narrow screens) */
 .page { max-width: 760px; margin: 0 auto; padding: 120px clamp(16px, 5vw, 64px) calc(64px + var(--dock-header)); }
 .page p { color: var(--muted); font-size: 1.15rem; line-height: 1.6; }
+/* on phones the bottom padding also clears the mini chibi (its 155px box + 16px gap + a little air) */
+@media (max-width: 899px) and (min-height: 501px) {
+  .page { padding-top: var(--top-clear); padding-bottom: calc(var(--dock-header) + 195px); }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .page { padding-top: 88px; padding-bottom: 195px; }
+}
 
 /* ---------- experience: vertical timeline ---------- */
 .experience p { margin: 0; font-size: 1rem; line-height: 1.5; } /* undo the stub-page lede size */

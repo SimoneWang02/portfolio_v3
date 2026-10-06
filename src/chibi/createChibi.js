@@ -431,6 +431,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       clamp(-((e.clientY - r.top) / r.height) * 2 + 1, -1.1, 1.1));
   }
   addEventListener("pointermove", onPointerMove);
+  addEventListener("pointerdown", onPointerMove); // touch screens have no hover: look where the visitor taps
   addEventListener("keydown", wake); // typing in the chat
   const onPointerLeave = () => cursorPx.set(-1e4, -1e4);
   document.documentElement.addEventListener("pointerleave", onPointerLeave);
@@ -619,10 +620,19 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     return raycaster.intersectObject(model, true).length > 0;
   }
   function onClick(e) {
-    if (!model || enter) return;
-    if (asleep) { wake(); return; }
     const r = container.getBoundingClientRect();
     const px = new THREE.Vector2(e.clientX - r.left, e.clientY - r.top);
+    // the mini box sits over the page: a click that misses the chibi (and its high-five reach) goes to whatever
+    // is underneath, so the corner of the box doesn't swallow links
+    if (miniT && !(model && !enter && (onChibi(px) || (canHighFive() && reachFor(px))))) {
+      container.style.pointerEvents = "none";
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      container.style.pointerEvents = "";
+      under?.click();
+      return;
+    }
+    if (!model || enter) return;
+    if (asleep) { wake(); return; }
     const arm = canHighFive() && reachFor(px);
     if (arm) {
       fiveArm = palmArm = arm; fiveHit0 = aimAt(arm, px);
@@ -1070,6 +1080,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       timers.forEach(clearTimeout);
       progressListeners.delete(progressFn);
       removeEventListener("pointermove", onPointerMove);
+      removeEventListener("pointerdown", onPointerMove);
       removeEventListener("keydown", wake);
       document.documentElement.removeEventListener("pointerleave", onPointerLeave);
       renderer.domElement.removeEventListener("click", onClick);

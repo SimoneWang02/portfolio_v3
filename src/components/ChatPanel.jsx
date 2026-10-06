@@ -16,10 +16,11 @@ export default function ChatPanel({ messages, busy, ask, collapsed }) {
     log.current?.scrollTo({ top: log.current.scrollHeight, behavior: "smooth" });
   }, [messages, minimized]);
 
-  // refocus after a reply (not on first load, which would pop the keyboard on phones)
+  // refocus after a reply so a follow-up can be typed straight away; not on touch screens, where it would
+  // pop the keyboard back over the answer
   const wasBusy = useRef(false);
   useEffect(() => {
-    if (wasBusy.current && !busy) input.current?.focus({ preventScroll: true });
+    if (wasBusy.current && !busy && !matchMedia("(pointer: coarse)").matches) input.current?.focus({ preventScroll: true });
     wasBusy.current = busy;
   }, [busy]);
 
