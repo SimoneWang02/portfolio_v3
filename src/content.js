@@ -126,6 +126,7 @@ export const EXPERIENCE = [
 
 // Projects page cards: independent work, newest first (by start date).
 // image: a path under public/ (e.g. "/projects/foo.jpg", ~16:9); leave it null and the card shows a tinted placeholder.
+// video: optional muted looping preview (720p mp4, no audio track); image then serves as its poster frame.
 // type: Pro bono / Startup / Personal (or Freelance for paid client work), shown as a pill by the dates.
 // summary shows on the card; points open under "Show details" (add as many as you like).
 // repo / url are optional; each one that's set becomes a link on the card.
@@ -153,7 +154,8 @@ export const PROJECTS = [
     type: "Pro bono",
     about: "Trading Card Game E-Commerce Platform",
     dates: "Jun 2026 – Jul 2026",
-    image: null,
+    image: "/projects/yocigaci.jpg",
+    video: "/projects/yocigaci.mp4",
     summary: "Production storefront for a trading card shop in Carpi, Italy: 28 orders (€3,600) in the first month.",
     points: [
       "Designed, built, and operated a production storefront for a trading card shop in Carpi, Italy; live since launch with 28 orders (€3,600) in the first month.",
@@ -170,7 +172,8 @@ export const PROJECTS = [
     type: "Pro bono",
     about: "Click & Collect Ordering Platform",
     dates: "May 2026",
-    image: null,
+    image: "/projects/meetea-poke.jpg",
+    video: "/projects/meetea-poke.mp4",
     summary: "Takeaway ordering for a poke bowl and bubble tea shop: 320 orders (€7,200) in its first three months.",
     points: [
       "Sole developer of a takeaway-ordering system for a poke bowl and bubble tea shop in Italy; live and processing 320 orders (€7,200) in its first three months.",
@@ -186,7 +189,8 @@ export const PROJECTS = [
     type: "Startup",
     about: "Web Platform for Students and Mentors",
     dates: "Feb 2026 – Present",
-    image: null,
+    image: "/projects/awaqe.jpg",
+    video: "/projects/awaqe.mp4",
     summary: "Lead developer of the first production prototype, collaborating with industry mentors from J.P. Morgan & Google.",
     points: [
       "Built and independently deployed the first production prototype on AWS EC2, covering firewall configuration, Nginx setup, runtime dependencies, and DNS routing.",

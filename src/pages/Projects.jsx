@@ -1,11 +1,28 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { PROJECTS } from "../content.js";
 import { useReveal } from "../hooks/useReveal.js";
 import { DetailsPanel, DetailsToggle } from "../components/Details.jsx";
 
 const external = { target: "_blank", rel: "noopener noreferrer" };
 
-// photo beside the headline facts (falls back to a tinted tile with the project's initial);
+// muted looping preview that only plays while on screen; reduced-motion users get the poster frame instead
+function PreviewVideo({ src, poster, label }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const v = ref.current;
+    v.muted = true; // React doesn't render the muted attribute, and browsers only autoplay muted video
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!("IntersectionObserver" in window)) { v.play().catch(() => {}); return; }
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) v.play().catch(() => {}); else v.pause();
+    });
+    io.observe(v);
+    return () => io.disconnect();
+  }, []);
+  return <video ref={ref} src={src} poster={poster} aria-label={label} muted loop playsInline preload="metadata" />;
+}
+
+// photo or looping video beside the headline facts (falls back to a tinted tile with the project's initial);
 // "Show details" opens the full points in a panel spanning the whole card
 function ProjectCard({ p }) {
   const [open, setOpen] = useState(false);
@@ -13,9 +30,11 @@ function ProjectCard({ p }) {
   return (
     <article className="pj-card reveal">
       <div className="pj-media">
-        {p.image
+        {p.video
+          ? <PreviewVideo src={p.video} poster={p.image} label={`Screen recording of ${p.name}`} />
+          : p.image
           ? <img src={p.image} alt={`Screenshot of ${p.name}`} loading="lazy" />
-          : <span className="pj-placeholder" aria-hidden="true">{p.name[0]}</span>}
+          :<span className="pj-placeholder" aria-hidden="true">{p.name[0]}</span>}
       </div>
       <div className="pj-body">
         <p className="pj-meta"><span className="tl-dates">{p.dates}</span><span className="pj-type">{p.type}</span></p>
