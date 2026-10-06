@@ -1,7 +1,7 @@
 // Copy shared by the chibi and the chat panel.
 export const NAME = "Simone Wang";
 export const GREETING = "Hey there! I'm mini-Simone. Ask me anything.";
-export const CHIPS = ["Looking for an internship?", "Biggest mistake you've made?", "What do you do for fun?", "Why did you get into coding?"];
+export const CHIPS = ["Who are you?", "Looking for an internship?", "Biggest mistake you've made?", "What do you do for fun?", "Why did you get into coding?"];
 // What the chibi says when a reply fails, one line picked at random (no emoji, like the persona).
 // credit: the DeepSeek balance ran out; glitch: anything else; midReply: appended to a glitched reply that had already started;
 // slow: this visitor hit the rate limit (6 a minute / 60 a day); resting: the whole site hit its daily cap.
