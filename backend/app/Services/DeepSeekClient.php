@@ -13,7 +13,7 @@ class DeepSeekClient
      *
      * @return array{content: string, tool_calls: array<int, array>}
      */
-    public function stream(array $messages, ?array $tools, callable $onText): array
+    public function stream(array $messages, ?array $tools, callable $onText, array|string|null $toolChoice = null): array
     {
         $payload = [
             'model' => config('services.deepseek.model'),
@@ -24,6 +24,9 @@ class DeepSeekClient
         ];
         if ($tools) {
             $payload['tools'] = $tools;
+        }
+        if ($toolChoice) {
+            $payload['tool_choice'] = $toolChoice;
         }
 
         $response = Http::withToken(config('services.deepseek.key'))

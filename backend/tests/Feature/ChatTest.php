@@ -72,6 +72,52 @@ class ChatTest extends TestCase
         Http::assertSent(fn (Request $r) => collect($r['messages'])->last()['role'] === 'tool' && ! isset($r['tools']));
     }
 
+    public function test_a_reply_written_alongside_the_tool_call_is_not_repeated(): void
+    {
+        Http::fakeSequence()->push($this->sse([
+            ['content' => "Don't know yet, passed it on!"],
+            ['tool_calls' => [['index' => 0, 'id' => 'c', 'type' => 'function', 'function' => ['name' => 'forward_question', 'arguments' => '{"question": "Q?"}']]]],
+        ]));
+
+        $this->assertSame("Don't know yet, passed it on!", $this->ask('where?')->streamedContent());
+        $this->assertSame(1, Question::count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_claiming_to_pass_a_question_on_without_the_tool_forwards_it_anyway(): void
+    {
+        Http::fakeSequence()
+            ->push($this->sse([['content' => "Don't know yet, I've passed it on to the real me."]]))
+            ->push($this->sse([['tool_calls' => [['index' => 0, 'id' => 'c', 'type' => 'function', 'function' => ['name' => 'forward_question', 'arguments' => '{"question": "Where are you going on vacation?"}']]]]]));
+
+        $this->assertSame("Don't know yet, I've passed it on to the real me.", $this->ask('where?', preset: true)->streamedContent());
+
+        $this->assertSame('Where are you going on vacation?', Question::sole()->question);
+        Http::assertSent(fn (Request $r) => ($r['tool_choice']['function']['name'] ?? null) === 'forward_question');
+        $this->assertSame(1, Message::where('role', 'assistant')->count());
+        $this->assertSame(0, Message::where('role', 'assistant')->where('forwarded', true)->count());
+    }
+
+    public function test_a_refused_forward_still_gets_a_follow_up(): void
+    {
+        $toolCall = $this->sse([
+            ['content' => 'Passed it on!'],
+            ['tool_calls' => [['index' => 0, 'id' => 'c', 'type' => 'function', 'function' => ['name' => 'forward_question', 'arguments' => '{"question": "Q?"}']]]],
+        ]);
+        $sequence = Http::fakeSequence();
+        foreach (range(1, 4) as $i) {
+            $sequence->push(str_replace('Q?', "Question $i?", $toolCall));
+        }
+        $sequence->push($this->sse([['content' => ' Actually, email me instead.']]));
+        $id = (string) Str::uuid();
+        foreach (range(1, 3) as $i) {
+            $this->ask("question $i", $id)->streamedContent();
+        }
+
+        $this->assertSame('Passed it on! Actually, email me instead.', $this->ask('question 4', $id)->streamedContent());
+        $this->assertSame(3, Question::count());
+    }
+
     public function test_answers_from_the_dashboard_go_into_the_prompt(): void
     {
         Knowledge::create(['question' => 'Favourite pasta?', 'answer' => 'Carbonara, made the Roman way.']);

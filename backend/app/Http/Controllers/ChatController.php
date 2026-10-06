@@ -34,6 +34,13 @@ class ChatController extends Controller
     // Ends a failed reply: followed by "credit" (DeepSeek balance ran out) or "glitch"; the frontend swaps in a friendly line.
     private const OOPS_MARK = "\x1e";
 
+    private const FORWARDED = 'Forwarded to the real me.';
+
+    // "I've passed it on", "passed your question about X on to the real me"...
+    private const CLAIMS_FORWARD = '/\bpass(?:ed|ing)\b[^.!?]{0,80}?\bon\b/i';
+
+    private const FORCE_FORWARD = ['type' => 'function', 'function' => ['name' => 'forward_question']];
+
     private const FORWARD_TOOL = [
         'type' => 'function',
         'function' => [
@@ -109,16 +116,31 @@ class ChatController extends Controller
                 // a preset answer is shared by every visitor, so it's written from the question alone, not this chat
                 $messages = [['role' => 'system', 'content' => $system], ...($preset ? [end($history)] : $history)];
                 $first = $ai->stream($messages, [self::FORWARD_TOOL], $emit);
-                if ($preset && ! $first['tool_calls'] && trim($reply) !== '') {
+                $claimed = ! $first['tool_calls'] && preg_match(self::CLAIMS_FORWARD, $first['content']);
+                if ($claimed) {
+                    // it told the visitor it passed the question on but never called the tool: ask again with the
+                    // tool forced, quietly, so the question really reaches the dashboard
+                    $forced = $ai->stream($messages, [self::FORWARD_TOOL], fn () => null, self::FORCE_FORWARD);
+                    foreach ($forced['tool_calls'] as $call) {
+                        $this->forward($call, $asked, $ipHash);
+                    }
+                }
+                if ($preset && ! $first['tool_calls'] && ! $claimed && trim($reply) !== '') {
                     Cache::put($presetKey, $reply, self::PRESET_TTL);
                 }
                 if ($first['tool_calls']) {
                     $messages[] = ['role' => 'assistant', 'content' => $first['content'], 'tool_calls' => $first['tool_calls']];
+                    $allForwarded = true;
                     foreach ($first['tool_calls'] as $call) {
-                        $messages[] = ['role' => 'tool', 'tool_call_id' => $call['id'], 'content' => $this->forward($call, $asked, $ipHash)];
+                        $result = $this->forward($call, $asked, $ipHash);
+                        $allForwarded = $allForwarded && $result === self::FORWARDED;
+                        $messages[] = ['role' => 'tool', 'tool_call_id' => $call['id'], 'content' => $result];
                     }
-                    // no tools on the follow-up, so the model can't loop
-                    $ai->stream($messages, null, $emit);
+                    // the model often writes its "passed it on" line alongside the call; if that's already true, don't say it twice
+                    if (trim($first['content']) === '' || ! $allForwarded) {
+                        // no tools on the follow-up, so the model can't loop
+                        $ai->stream($messages, null, $emit);
+                    }
                 }
                 if (trim($reply) === '') {
                     echo self::OOPS_MARK.'glitch'; // the model said nothing; don't leave the visitor with an empty bubble
@@ -180,6 +202,6 @@ class ChatController extends Controller
         Question::record(mb_substr($text, 0, self::MAX_CHARS), $asked);
         $asked->update(['forwarded' => true]);
 
-        return 'Forwarded to the real me.';
+        return self::FORWARDED;
     }
 }
