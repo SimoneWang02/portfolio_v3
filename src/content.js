@@ -172,7 +172,8 @@ export const PROJECTS = [
     type: "Personal",
     about: "3D Portfolio with an AI Chat Companion",
     dates: "Oct 2026",
-    image: null,
+    image: "/projects/mini-simone.jpg",
+    video: "/projects/mini-simone.mp4",
     summary: "This site: a rigged 3D chibi that lip-syncs to an AI chat, which sends me the questions it can't answer and learns from my replies.",
     points: [
       "Directed the build with AI tools: 2D art in Gemini, a rigged 3D model in Tripo, and all the code written with Claude Code; the model is optimized to 1.2 MB with glTF-Transform (meshopt geometry, WebP textures).",
