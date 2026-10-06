@@ -12,7 +12,7 @@
 - [ ] Testimonials
 - [ ] Blog / notes
 - [ ] Bilingual EN/IT toggle
-- [ ] SEO / social previews (meta description, Open Graph, favicon)
+- [x] SEO / social previews (meta description, Open Graph, favicon)
 - [x] Reduced-motion support and lazy-loaded images
 
 ## Creative
@@ -32,4 +32,4 @@
 - [ ] Live GitHub activity
 - [ ] Scroll-driven timeline with a walking chibi
 - [ ] Guestbook
-- [ ] Spotify "currently listening"
+- [x] Spotify "currently listening"
