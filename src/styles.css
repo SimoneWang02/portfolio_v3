@@ -285,6 +285,7 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
 .msg.assistant { background: #eef3fb; border-top-left-radius: 4px; }
+.msg.assistant a { color: var(--accent2); text-decoration: underline; text-underline-offset: 2px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
 .chip {
