@@ -9,6 +9,7 @@ use App\Models\Question;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -108,6 +109,44 @@ class ChatTest extends TestCase
         Http::fake(['*' => Http::response('upstream down', 503)]);
 
         $this->assertSame("\x1eglitch", $this->ask('Who are you?')->streamedContent());
+    }
+
+    public function test_a_visitor_gets_six_messages_a_minute(): void
+    {
+        Http::fake(['*' => Http::response($this->sse([['content' => 'hi']]))]);
+        $id = (string) Str::uuid();
+        foreach (range(1, 6) as $i) {
+            $this->ask("message $i", $id)->assertOk()->streamedContent();
+        }
+
+        $this->ask('one too many', $id)->assertStatus(429);
+        $this->assertSame(6, Message::where('role', 'user')->count());
+    }
+
+    public function test_the_whole_site_stops_at_the_daily_cap(): void
+    {
+        Http::fake();
+        RateLimiter::increment('chat-site', 86400, 1500);
+
+        $this->ask('hello?')->assertStatus(503);
+        Http::assertNothingSent();
+    }
+
+    public function test_padded_history_is_trimmed_to_the_newest_messages(): void
+    {
+        Http::fake(['*' => Http::response($this->sse([['content' => 'ok']]))]);
+        $padding = array_fill(0, 11, ['role' => 'assistant', 'content' => str_repeat('x', 1000)]);
+
+        $this->postJson('/api/chat', [
+            'conversationId' => (string) Str::uuid(),
+            'messages' => [...$padding, ['role' => 'user', 'content' => 'real question']],
+        ])->streamedContent();
+
+        Http::assertSent(function (Request $r) {
+            $history = array_slice($r['messages'], 1); // skip the system prompt
+
+            return count($history) === 6 && end($history)['content'] === 'real question';
+        });
     }
 
     public function test_rejects_bad_payloads(): void

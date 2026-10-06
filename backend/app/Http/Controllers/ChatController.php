@@ -19,6 +19,10 @@ class ChatController extends Controller
 {
     private const MAX_HISTORY = 12;
     private const MAX_CHARS = 1000;
+    private const MAX_HISTORY_CHARS = 6000; // the browser sends the history, so a script could pad it to run up the bill
+    private const PER_MINUTE = 6;
+    private const PER_DAY = 60;
+    private const SITE_PER_DAY = 1500; // circuit breaker across all visitors, caps a bad day's DeepSeek spend
     private const MAX_FORWARDS_PER_CHAT = 3;
     private const MAX_FORWARDS_PER_DAY = 10;
 
@@ -46,18 +50,32 @@ class ChatController extends Controller
             'conversationId' => ['required', 'uuid'],
             'messages' => ['required', 'array'],
         ]);
+        $budget = self::MAX_HISTORY_CHARS;
         $history = collect($data['messages'])
             ->slice(-self::MAX_HISTORY)
             ->filter(fn ($m) => in_array($m['role'] ?? null, ['user', 'assistant'], true))
             ->map(fn ($m) => ['role' => $m['role'], 'content' => mb_substr((string) ($m['content'] ?? ''), 0, self::MAX_CHARS)])
+            ->reverse() // keep the newest messages that fit the budget
+            ->takeWhile(function ($m) use (&$budget) {
+                $budget -= mb_strlen($m['content']);
+
+                return $budget >= 0;
+            })
+            ->reverse()
             ->values()
             ->all();
         abort_if(! $history || end($history)['role'] !== 'user', 422, 'The last message must be from the visitor.');
         abort_unless(config('services.deepseek.key'), 500, 'DEEPSEEK_API_KEY not set');
 
         $ipHash = hash_hmac('sha256', (string) $request->ip(), config('services.chat.ip_salt'));
-        abort_if(RateLimiter::tooManyAttempts("chat:$ipHash", 20), 429, 'Too many messages, slow down a little.');
+        abort_if(
+            RateLimiter::tooManyAttempts("chat:$ipHash", self::PER_MINUTE) || RateLimiter::tooManyAttempts("chat-day:$ipHash", self::PER_DAY),
+            429, 'Too many messages, slow down a little.',
+        );
+        abort_if(RateLimiter::tooManyAttempts('chat-site', self::SITE_PER_DAY), 503, 'The chibi is resting until tomorrow.');
         RateLimiter::hit("chat:$ipHash", 60);
+        RateLimiter::hit("chat-day:$ipHash", 86400);
+        RateLimiter::hit('chat-site', 86400);
 
         $conversation = Conversation::firstOrCreate(
             ['id' => $data['conversationId']],

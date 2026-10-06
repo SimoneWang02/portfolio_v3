@@ -32,6 +32,7 @@ export function useChat(chibiRef) {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId: conversationId.current, messages: history.current }),
       });
+      if (res.status === 429 || res.status === 503) throw Object.assign(new Error(`HTTP ${res.status}`), { oops: res.status === 429 ? "slow" : "resting" });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -45,12 +46,12 @@ export function useChat(chibiRef) {
         if (chunk) say(chunk);
       }
     } catch (err) {
-      oops = "glitch";
-      console.error(err);
+      oops = err.oops ?? "glitch";
+      if (!err.oops) console.error(err);
     }
     if (oops !== null) {
       // a lost reply can be picked up again, an empty wallet can't, so the credit lines win even mid-reply
-      const pool = oops === "credit" ? OOPS.credit : answer.trim() ? OOPS.midReply : OOPS.glitch;
+      const pool = OOPS[oops] && oops !== "glitch" ? OOPS[oops] : answer.trim() ? OOPS.midReply : OOPS.glitch;
       say((answer ? " " : "") + pool[Math.floor(Math.random() * pool.length)]);
     }
     history.current = [...history.current, { role: "assistant", content: answer }];
