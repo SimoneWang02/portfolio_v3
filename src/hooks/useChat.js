@@ -10,7 +10,8 @@ export function useChat(chibiRef) {
   const history = useRef([]); // source of truth for what we send; `messages` mirrors it for rendering
   const conversationId = useRef(crypto.randomUUID()); // one logged conversation per page load
 
-  const ask = useCallback(async (raw) => {
+  // `preset`: a chip question, which the server answers from its cache
+  const ask = useCallback(async (raw, { preset = false } = {}) => {
     const q = raw.trim();
     if (!q || busy) return;
     setBusy(true);
@@ -30,7 +31,7 @@ export function useChat(chibiRef) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: conversationId.current, messages: history.current }),
+        body: JSON.stringify({ conversationId: conversationId.current, messages: history.current, preset }),
       });
       if (res.status === 429 || res.status === 503) throw Object.assign(new Error(`HTTP ${res.status}`), { oops: res.status === 429 ? "slow" : "resting" });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);

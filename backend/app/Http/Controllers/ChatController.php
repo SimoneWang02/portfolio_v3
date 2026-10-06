@@ -9,12 +9,14 @@ use App\Services\DeepSeekClient;
 use App\Services\PersonaPrompt;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 // POST /api/chat: logs the visitor's message, streams the chibi's reply as plain text,
 // and records questions the AI couldn't answer for the admin dashboard.
+// Preset chip questions are answered once per version of the prompt and replayed from the cache.
 class ChatController extends Controller
 {
     private const MAX_HISTORY = 12;
@@ -25,6 +27,8 @@ class ChatController extends Controller
     private const SITE_PER_DAY = 1500; // circuit breaker across all visitors, caps a bad day's DeepSeek spend
     private const MAX_FORWARDS_PER_CHAT = 3;
     private const MAX_FORWARDS_PER_DAY = 10;
+    private const PRESET_TTL = 60 * 60 * 24 * 30; // the key changes with the prompt anyway; this just clears out old versions
+    private const REPLAY_DELAY_US = 25_000; // per word, so a cached answer still types out and the chibi talks along
 
     // Ends a failed reply: followed by "credit" (DeepSeek balance ran out) or "glitch"; the frontend swaps in a friendly line.
     private const OOPS_MARK = "\x1e";
@@ -52,6 +56,7 @@ class ChatController extends Controller
             'messages.*' => ['array'],
             'messages.*.role' => ['nullable', 'string'],
             'messages.*.content' => ['nullable', 'string'],
+            'preset' => ['sometimes', 'boolean'],
         ]);
         $budget = self::MAX_HISTORY_CHARS;
         $history = collect($data['messages'])
@@ -86,7 +91,13 @@ class ChatController extends Controller
         );
         $asked = $this->log($conversation, 'user', end($history)['content']);
 
-        return response()->stream(function () use ($ai, $persona, $history, $conversation, $asked, $ipHash) {
+        $system = $persona->build();
+        $preset = (bool) ($data['preset'] ?? false);
+        // persona.md and every dashboard answer are in $system, so editing either one starts a fresh cache
+        $presetKey = 'preset-reply:'.hash('sha256', $system."\0".Question::normalize($asked->content));
+        $cached = $preset ? Cache::get($presetKey) : null;
+
+        return response()->stream(function () use ($ai, $system, $history, $conversation, $asked, $ipHash, $preset, $presetKey, $cached) {
             ignore_user_abort(true); // finish and log the reply even if the visitor closes the tab mid-stream
             $reply = '';
             $emit = function (string $text) use (&$reply) {
@@ -98,9 +109,23 @@ class ChatController extends Controller
                 flush();
             };
 
+            if ($cached !== null) {
+                foreach (preg_split('/(?<=\s)/u', $cached, -1, PREG_SPLIT_NO_EMPTY) as $word) {
+                    $emit($word);
+                    usleep(self::REPLAY_DELAY_US);
+                }
+                $this->log($conversation, 'assistant', $reply);
+
+                return;
+            }
+
             try {
-                $messages = [['role' => 'system', 'content' => $persona->build()], ...$history];
+                // a preset answer is shared by every visitor, so it's written from the question alone, not this chat
+                $messages = [['role' => 'system', 'content' => $system], ...($preset ? [end($history)] : $history)];
                 $first = $ai->stream($messages, [self::FORWARD_TOOL], $emit);
+                if ($preset && ! $first['tool_calls'] && trim($reply) !== '') {
+                    Cache::put($presetKey, $reply, self::PRESET_TTL);
+                }
                 if ($first['tool_calls']) {
                     $messages[] = ['role' => 'assistant', 'content' => $first['content'], 'tool_calls' => $first['tool_calls']];
                     foreach ($first['tool_calls'] as $call) {

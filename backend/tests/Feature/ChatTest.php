@@ -30,11 +30,12 @@ class ChatTest extends TestCase
         return implode("\n\n", [...$lines, 'data: [DONE]'])."\n\n";
     }
 
-    private function ask(string $text, ?string $conversationId = null)
+    private function ask(string $text, ?string $conversationId = null, bool $preset = false)
     {
         return $this->postJson('/api/chat', [
             'conversationId' => $conversationId ?? (string) Str::uuid(),
             'messages' => [['role' => 'user', 'content' => $text]],
+            'preset' => $preset,
         ]);
     }
 
@@ -164,5 +165,47 @@ class ChatTest extends TestCase
 
         $this->assertSame("\x1eglitch", $this->ask('hi')->streamedContent());
         $this->assertSame(1, Message::count()); // only the visitor's message
+    }
+
+    public function test_preset_answers_are_cached_until_the_prompt_changes(): void
+    {
+        Http::fakeSequence()
+            ->push($this->sse([['content' => "I'm Simone, "], ['content' => 'a developer.']]))
+            ->push($this->sse([['content' => "I'm Simone, and I love carbonara."]]));
+
+        $this->assertSame("I'm Simone, a developer.", $this->ask('Who are you?', preset: true)->streamedContent());
+        $this->assertSame("I'm Simone, a developer.", $this->ask('Who are you?', preset: true)->streamedContent());
+        Http::assertSentCount(1);
+        $this->assertSame(2, Message::where('role', 'assistant')->count()); // replays are still logged
+
+        Knowledge::create(['question' => 'Favourite pasta?', 'answer' => 'Carbonara.']);
+        $this->assertSame("I'm Simone, and I love carbonara.", $this->ask('Who are you?', preset: true)->streamedContent());
+        Http::assertSentCount(2);
+    }
+
+    public function test_preset_answers_ignore_the_chat_so_far(): void
+    {
+        Http::fake(['*' => Http::response($this->sse([['content' => 'ok']]))]);
+
+        $this->postJson('/api/chat', [
+            'conversationId' => (string) Str::uuid(),
+            'messages' => [['role' => 'user', 'content' => 'call me Bob'], ['role' => 'assistant', 'content' => 'Hi Bob!'], ['role' => 'user', 'content' => 'Who are you?']],
+            'preset' => true,
+        ])->streamedContent();
+
+        Http::assertSent(fn (Request $r) => count($r['messages']) === 2 && $r['messages'][1]['content'] === 'Who are you?');
+    }
+
+    public function test_typed_questions_and_forwarded_presets_are_not_cached(): void
+    {
+        $toolCall = $this->sse([['tool_calls' => [['index' => 0, 'id' => 'c', 'type' => 'function', 'function' => ['name' => 'forward_question', 'arguments' => '{"question": "Q?"}']]]]]);
+        Http::fake(['*' => Http::sequence()
+            ->push($this->sse([['content' => 'typed']]))
+            ->push($toolCall)->push($this->sse([['content' => 'passed it on']]))
+            ->push($this->sse([['content' => 'fresh']]))]);
+
+        $this->ask('Who are you?')->streamedContent();
+        $this->ask('Who are you?', preset: true)->streamedContent();
+        $this->assertSame('fresh', $this->ask('Who are you?', preset: true)->streamedContent());
     }
 }

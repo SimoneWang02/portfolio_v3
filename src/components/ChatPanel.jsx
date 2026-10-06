@@ -64,13 +64,11 @@ export default function ChatPanel({ messages, busy, ask, collapsed }) {
             </div>
           ))}
         </div>
-        {messages.length === 0 && (
-          <div className="chips">
-            {CHIPS.map((c) => (
-              <button key={c} type="button" className="chip" disabled={busy} onClick={() => ask(c)}>{c}</button>
-            ))}
-          </div>
-        )}
+        <div className="chips">
+          {CHIPS.map((c) => (
+            <button key={c} type="button" className="chip" disabled={busy} onClick={() => ask(c, { preset: true })}>{c}</button>
+          ))}
+        </div>
         <form className="ask" onSubmit={submit} autoComplete="off">
           <input ref={input} value={text} onChange={(e) => setText(e.target.value)}
                  placeholder="Write a message…" maxLength={500} aria-label="Your question" />
