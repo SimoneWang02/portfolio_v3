@@ -4,7 +4,8 @@ export const GREETING = "Hey there! I'm mini-Simone. Ask me anything.";
 export const CHIPS = ["Who are you?", "Looking for an internship?", "Biggest mistake you've made?", "What do you do for fun?", "Why did you get into coding?"];
 // What the chibi says when a reply fails, one line picked at random (no emoji, like the persona).
 // credit: the DeepSeek balance ran out; glitch: anything else; midReply: appended to a glitched reply that had already started;
-// slow: this visitor hit the rate limit (6 a minute / 60 a day); resting: the whole site hit its daily cap.
+// slow: this visitor hit the rate limit (6 a minute / 60 a day); resting: the whole site hit its daily cap;
+// busy: too many replies streaming at once.
 export const OOPS = {
   credit: [
     "My brain's running on empty right now, so I can't chat. Email me at simone.wang2002@gmail.com and the real me will answer!",
@@ -36,6 +37,10 @@ export const OOPS = {
   resting: [
     "I've chatted so much today that I'm taking a nap. Come back tomorrow, or email simone.wang2002@gmail.com!",
     "I'm all talked out for today. The real me still reads email: simone.wang2002@gmail.com.",
+  ],
+  busy: [
+    "Lots of people are talking to me right now! Give me a few seconds and ask again.",
+    "I'm a bit crowded at the moment. Try again in a few seconds?",
   ],
 };
 export const LINKS = {

@@ -29,11 +29,19 @@ export function useChat(chibiRef) {
       setMessages([...history.current, { role: "assistant", content: answer, pending: true }]);
     };
     try {
-      const res = await fetch("/api/chat", {
+      const send = () => fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId: conversationId.current, message: q, preset }),
       });
-      if (res.status === 429 || res.status === 503) throw Object.assign(new Error(`HTTP ${res.status}`), { oops: res.status === 429 ? "slow" : "resting" });
+      let res = await send();
+      if (res.status === 409) {
+        // the server ties a chat to the network it started on; after a switch (wifi to mobile) start a new one
+        conversationId.current = crypto.randomUUID();
+        res = await send();
+      }
+      if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { oops: "slow" });
+      // 503 is either the daily cap or every reply slot taken; only the second says when to come back
+      if (res.status === 503) throw Object.assign(new Error("HTTP 503"), { oops: res.headers.has("Retry-After") ? "busy" : "resting" });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();
       const dec = new TextDecoder();

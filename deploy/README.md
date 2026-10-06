@@ -31,7 +31,7 @@ One small VPS runs everything:
    printf "PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n" > /etc/ssh/sshd_config.d/10-hardening.conf
    sshd -t && systemctl reload ssh
    ```
-5. **PHP-FPM.** In `/etc/php/8.5/fpm/pool.d/www.conf`, set `pm.max_children = 10`. Each chat reply keeps one worker busy for 5–15 seconds while it streams.
+5. **PHP-FPM.** In `/etc/php/8.5/fpm/pool.d/www.conf`, set `pm.max_children = 10`. Each chat reply keeps one worker busy for 5–15 seconds while it streams. The chat streams at most 6 replies at once (`MAX_STREAMS` in `ChatController`) so the rest stay free for `/admin`; keep it below `pm.max_children`.
 
 ## 2. App (once)
 
@@ -89,10 +89,13 @@ One small VPS runs everything:
 ssh deploy@example.com /var/www/portfolio/deploy/deploy.sh
 ```
 
+`deploy.sh` doesn't touch nginx. When `deploy/nginx.conf` changes, copy the changed lines into `/etc/nginx/sites-available/portfolio` by hand (certbot has edited that file, so don't overwrite it), then as root `nginx -t && systemctl reload nginx`.
+
 ## Checks
 
 - `curl -N https://example.com/api/chat -H 'Content-Type: application/json' -d '{"conversationId":"<uuid>","message":"hi"}'` should print the reply gradually, not all at the end.
-- `/`, `/experience` and `/admin` all load. `/admin` asks you to log in.
+- `/`, `/experience` and `/admin` all load. `/admin` asks you to log in, then for a code from an authenticator app (the first login walks you through setting one up; keep the recovery codes somewhere safe).
+- `curl -sI https://example.com/` shows `X-Frame-Options: DENY` and no nginx version in `Server`.
 - After the first night, `ls /var/backups/portfolio` shows a `db-YYYY-MM-DD.sqlite` file.
 
 ## Cloudflare (optional, faster for US visitors)

@@ -27,7 +27,7 @@ class AdminTest extends TestCase
     {
         parent::setUp();
         config(['services.chat.admin_email' => 'admin@example.com']);
-        $this->actingAs(User::factory()->create(['email' => 'admin@example.com']));
+        $this->actingAs(User::factory()->create(['email' => 'admin@example.com', 'app_authentication_secret' => 'JBSWY3DPEHPK3PXP']));
 
         $this->chat = Conversation::create(['id' => (string) Str::uuid(), 'ip_hash' => 'x']);
         Http::preventStrayRequests();
@@ -60,6 +60,13 @@ class AdminTest extends TestCase
         $this->actingAs(User::factory()->create(['email' => 'someone@example.com']));
 
         $this->get('/admin')->assertForbidden();
+    }
+
+    public function test_the_admin_has_to_set_up_an_authenticator_app_first(): void
+    {
+        auth()->user()->saveAppAuthenticationSecret(null);
+
+        $this->get('/admin/questions')->assertRedirectContains('/admin/multi-factor-authentication/set-up');
     }
 
     public function test_answering_turns_a_question_into_knowledge(): void

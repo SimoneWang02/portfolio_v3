@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\Question;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -28,6 +29,11 @@ class ChatTest extends TestCase
         $lines = array_map(fn ($d) => 'data: '.json_encode(['choices' => [['delta' => $d]]]), $deltas);
 
         return implode("\n\n", [...$lines, 'data: [DONE]'])."\n\n";
+    }
+
+    private function ownHash(): string
+    {
+        return hash_hmac('sha256', '127.0.0.1', config('services.chat.ip_salt'));
     }
 
     private function ask(string $text, ?string $conversationId = null, bool $preset = false)
@@ -90,7 +96,7 @@ class ChatTest extends TestCase
             ->push($this->sse([['content' => "Don't know yet, I've passed it on to the real me."]]))
             ->push($this->sse([['tool_calls' => [['index' => 0, 'id' => 'c', 'type' => 'function', 'function' => ['name' => 'forward_question', 'arguments' => '{"question": "Where are you going on vacation?"}']]]]]));
 
-        $this->assertSame("Don't know yet, I've passed it on to the real me.", $this->ask('where?', preset: true)->streamedContent());
+        $this->assertSame("Don't know yet, I've passed it on to the real me.", $this->ask('Who are you?', preset: true)->streamedContent());
 
         $this->assertSame('Where are you going on vacation?', Question::sole()->question);
         Http::assertSent(fn (Request $r) => ($r['tool_choice']['function']['name'] ?? null) === 'forward_question');
@@ -202,7 +208,7 @@ class ChatTest extends TestCase
     public function test_a_long_chat_is_trimmed_to_the_newest_messages(): void
     {
         Http::fake(['*' => Http::response($this->sse([['content' => 'ok']]))]);
-        $conversation = Conversation::create(['id' => (string) Str::uuid(), 'ip_hash' => 'x']);
+        $conversation = Conversation::create(['id' => (string) Str::uuid(), 'ip_hash' => $this->ownHash()]);
         foreach (range(1, 11) as $i) {
             $conversation->messages()->create(['role' => $i % 2 ? 'user' : 'assistant', 'content' => str_repeat('x', 1000)]);
         }
@@ -214,6 +220,46 @@ class ChatTest extends TestCase
 
             return count($history) === 6 && end($history)['content'] === 'real question';
         });
+    }
+
+    public function test_someone_elses_chat_cannot_be_read_or_added_to(): void
+    {
+        Http::fake();
+        $conversation = Conversation::create(['id' => (string) Str::uuid(), 'ip_hash' => 'another network']);
+        $conversation->messages()->create(['role' => 'user', 'content' => 'my secret']);
+
+        $this->ask('what did I say before?', $conversation->id)->assertStatus(409);
+
+        Http::assertNothingSent();
+        $this->assertSame(1, $conversation->messages()->count());
+    }
+
+    public function test_only_the_chip_questions_share_a_cached_answer(): void
+    {
+        Http::fake(['*' => Http::sequence()
+            ->push($this->sse([['content' => 'first']]))
+            ->push($this->sse([['content' => 'second']]))]);
+        $id = (string) Str::uuid();
+        $this->ask('call me Bob', $id, preset: true)->streamedContent();
+
+        $this->assertSame('second', $this->ask('call me Bob', preset: true)->streamedContent());
+        Http::assertSentCount(2);
+    }
+
+    public function test_replies_wait_for_a_free_slot(): void
+    {
+        Http::fake(['*' => Http::response($this->sse([['content' => 'ok']]))]);
+        foreach (range(1, 6) as $i) {
+            Cache::lock("chat-stream:$i", 180)->get();
+        }
+
+        $this->ask('hello?')->assertStatus(503)->assertHeader('Retry-After', '15');
+        Http::assertNothingSent();
+        $this->assertSame(0, Message::count());
+
+        Cache::lock('chat-stream:3')->forceRelease();
+        $this->assertSame('ok', $this->ask('hello?')->streamedContent());
+        $this->assertTrue(Cache::lock('chat-stream:3', 180)->get()); // released once the reply ended
     }
 
     public function test_rejects_bad_payloads(): void

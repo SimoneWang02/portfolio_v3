@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -28,6 +29,8 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->profile() // change name/email/password from the user menu
+            // a code from an authenticator app on every login; the first login after this asks to set it up
+            ->multiFactorAuthentication(AppAuthentication::make()->recoverable(), isRequired: true)
             ->brandName('') // no brand text in the sidebar or tab title
             ->colors([
                 'primary' => Color::Violet,
