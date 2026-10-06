@@ -1,5 +1,5 @@
-// Turns links in chat replies into <a> tags: markdown [text](url), full URLs,
-// bare domains like linkedin.com/in/…, and email addresses.
+// Renders a chat reply: "- " / "1. " lines become lists, **bold** becomes <strong>, and links
+// (markdown [text](url), full URLs, bare domains like linkedin.com/in/…, emails) become <a> tags.
 const TLDS = "com|dev|io|org|net|edu|ai|app|me|co|gg|so|xyz";
 const LINK = new RegExp(
   [
@@ -32,7 +32,7 @@ function anchor(href, label, key) {
   );
 }
 
-export default function linkify(text) {
+function linkify(text) {
   const out = [];
   let last = 0;
   for (const m of text.matchAll(LINK)) {
@@ -50,4 +50,31 @@ export default function linkify(text) {
   }
   out.push(text.slice(last));
   return out;
+}
+
+function inline(text) {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 ? <strong key={i}>{linkify(part)}</strong> : linkify(part));
+}
+
+const ITEM = /^\s*(?:([-*•])|\d+[.)])\s+(.*)$/;
+
+export default function formatReply(text) {
+  const blocks = [];
+  for (const line of text.split("\n")) {
+    const m = line.match(ITEM);
+    if (!line.trim() && blocks.at(-1)?.type !== "text") continue; // blank line inside a list
+    const type = m ? (m[1] ? "ul" : "ol") : "text";
+    const prev = blocks.at(-1);
+    if (prev?.type === type) prev.lines.push(m ? m[2] : line);
+    else blocks.push({ type, lines: [m ? m[2] : line] });
+  }
+  return blocks.map((b, i) => {
+    if (b.type === "text") {
+      const t = b.lines.join("\n").trim();
+      return t && <p key={i}>{inline(t)}</p>;
+    }
+    const List = b.type;
+    return <List key={i}>{b.lines.map((l, j) => <li key={j}>{inline(l)}</li>)}</List>;
+  });
 }

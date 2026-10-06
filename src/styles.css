@@ -285,6 +285,10 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
   background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
 .msg.assistant { background: #eef3fb; border-top-left-radius: 4px; }
+.msg.assistant p, .msg.assistant ul, .msg.assistant ol { margin: 0; }
+.msg.assistant > * + * { margin-top: 6px; }
+.msg.assistant ul, .msg.assistant ol { padding-left: 1.2em; white-space: normal; }
+.msg.assistant li + li { margin-top: 2px; }
 .msg.assistant a { color: var(--accent2); text-decoration: underline; text-underline-offset: 2px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }

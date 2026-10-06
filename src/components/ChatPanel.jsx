@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CHIPS, GREETING } from "../content.js";
-import linkify from "../linkify.jsx";
+import formatReply from "../formatReply.jsx";
 
 // LinkedIn-messaging-style dock pinned bottom-right; the header bar minimizes/expands it.
 // `collapsed`: page-driven default (open on Home, minimized elsewhere so it doesn't cover the content).
@@ -59,7 +59,7 @@ export default function ChatPanel({ messages, busy, ask, collapsed }) {
               <div className={`msg ${m.role}`}>
                 {m.pending && !m.content
                   ? <span className="dots"><span>•</span><span>•</span><span>•</span></span>
-                  : m.role === "assistant" ? linkify(m.content) : m.content}
+                  : m.role === "assistant" ? formatReply(m.content) : m.content}
               </div>
             </div>
           ))}
