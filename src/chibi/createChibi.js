@@ -328,7 +328,11 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
 
   // ---------- scene ----------
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  // the full-size canvas covers the whole window: at a Retina 2x that's ~6M pixels to draw every frame, more
+  // than a laptop GPU keeps up with, so big canvases get a pixel budget instead (the mini box stays at 2x)
+  const MAX_PIXELS = 3.5e6;
+  const pixelRatio = () => Math.min(devicePixelRatio, 2, Math.max(1, Math.sqrt(MAX_PIXELS / (width * height))));
+  renderer.setPixelRatio(pixelRatio());
   renderer.setSize(width, height);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NeutralToneMapping; // keeps skin tones true (ACES muddies them)
@@ -419,7 +423,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   // pointer relative to the stage, so the chibi looks toward the chat panel when you're typing there
   const pointer = new THREE.Vector2();
   const cursorPx = new THREE.Vector2(-1e4, -1e4); // pointer in stage pixels, for the cursor hint + high five
-  let cursorMoved = false, hoverAt = 0;
+  let cursorMoved = false, hoverAt = 0, picking = false;
   function onPointerMove(e) {
     const r = container.getBoundingClientRect();
     cursorPx.set(e.clientX - r.left, e.clientY - r.top);
@@ -534,7 +538,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   const upperLean = spring();             // upper body pitch, lagging behind speed changes (overlapping action)
   const bodyPitch = spring();             // whole-body lean into the walk
   function startEntrance() {
-    const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * fullZ * (width / height);
+    const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * fullZ * camera.aspect;
     // the screen's left edge, allowing for the view being shifted right (shiftPx)
     const x0 = -halfW * (1 + 2 * shiftPx / width) - 0.55; // just far enough out that the big head is hidden
     enter = { t: 0, phase: "peek", x0, x: x0, v: 0, a: 0 };
@@ -614,17 +618,43 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   }
 
   // click within arm's reach of the chibi -> high five; click on the chibi elsewhere -> spin + hop
-  const raycaster = new THREE.Raycaster();
+  // Is the chibi at stage pixel `px`? The model alone is drawn into a 1×1 target through that pixel of the
+  // camera's view and its alpha read back. (A raycast against the skinned mesh skins every triangle on the
+  // CPU: ~25 ms a test, dropping frames.)
+  const pickTarget = new THREE.WebGLRenderTarget(1, 1), pickPx = new Uint8Array(4);
+  function drawPick(px) {
+    const v = camera.view?.enabled ? { ...camera.view } : { fullWidth: width, fullHeight: height, offsetX: 0, offsetY: 0 }; // as set by applyShift
+    camera.setViewOffset(v.fullWidth, v.fullHeight, v.offsetX + px.x, v.offsetY + px.y, 1, 1);
+    const tagVisible = tag.group.visible;
+    tag.group.visible = blob.visible = false;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.setRenderTarget(pickTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.shadowMap.autoUpdate = true;
+    tag.group.visible = tagVisible; blob.visible = true;
+    viewKey = ""; applyShift();
+  }
+  // for a click: waits for the GPU, but just this once, and the click is still handled (and forwarded, below)
+  // within the tap, so a forwarded link opening a new tab isn't blocked as a popup
   function onChibi(px) {
-    raycaster.setFromCamera(_px2.set(px.x / width * 2 - 1, -px.y / height * 2 + 1), camera);
-    return raycaster.intersectObject(model, true).length > 0;
+    drawPick(px);
+    renderer.readRenderTargetPixels(pickTarget, 0, 0, 1, 1, pickPx);
+    return pickPx[3] > 0;
+  }
+  // for the hover cursor, checked repeatedly: read back without stalling, resolving a frame or two later
+  function onChibiAsync(px) {
+    drawPick(px);
+    return renderer.readRenderTargetPixelsAsync(pickTarget, 0, 0, 1, 1, new Uint8Array(4)).then((p) => p[3] > 0, () => false);
   }
   function onClick(e) {
     const r = container.getBoundingClientRect();
     const px = new THREE.Vector2(e.clientX - r.left, e.clientY - r.top);
+    const arm = model && !enter && canHighFive() && reachFor(px);
+    const hit = !arm && model && !enter && onChibi(px);
     // the mini box sits over the page: a click that misses the chibi (and its high-five reach) goes to whatever
     // is underneath, so the corner of the box doesn't swallow links
-    if (miniT && !(model && !enter && (onChibi(px) || (canHighFive() && reachFor(px))))) {
+    if (miniT && !arm && !hit) {
       container.style.pointerEvents = "none";
       const under = document.elementFromPoint(e.clientX, e.clientY);
       container.style.pointerEvents = "";
@@ -633,37 +663,46 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
     if (!model || enter) return;
     if (asleep) { wake(); return; }
-    const arm = canHighFive() && reachFor(px);
     if (arm) {
       fiveArm = palmArm = arm; fiveHit0 = aimAt(arm, px);
       fiveT = 0; fiveHit = false;
       return;
     }
-    if (onChibi(px)) spin();
+    if (hit) spin();
   }
   renderer.domElement.addEventListener("click", onClick);
 
   const lerp = THREE.MathUtils.lerp;
-  let frame = 0;
+  let frame = 0, cssAt = 0;
 
   // mini: the container shrinks to a small draggable box (CSS animates it); the camera moves in to keep
   // the chibi filling it and the name tag shrinks away. miniK eases toward miniT at about the CSS pace.
   let miniT = mini ? 1 : 0, miniK = miniT;
   // full-size framing, frozen while mini so the box's changing aspect mid-shrink doesn't make it jump
   let fullZ = 5.2, fullY = 1.05;
-  // full size, the chibi can stand right of the stage's center (CSS --chibi-shift, px): the camera's view is
-  // shifted instead of the chibi, so it still faces the camera head-on
-  let shiftPx = 0, viewKey = "";
-  const readShift = () => { shiftPx = parseFloat(getComputedStyle(container).getPropertyValue("--chibi-shift")) || 0; };
+  // full size, the chibi can be framed into part of the stage: CSS --chibi-shift (px right of center) and
+  // --frame-top / --frame-bottom (px kept clear above and below, e.g. for the intro and chat sheet on phones).
+  // The camera's view is offset instead of the chibi moving or the canvas shrinking, so it still faces the
+  // camera head-on, and a hop or the name tag can rise past the frame without being clipped.
+  let shiftPx = 0, frameT = [0, 0], frameK = null, viewKey = "";
+  const cssPx = (name) => parseFloat(getComputedStyle(container).getPropertyValue(name)) || 0;
+  const readShift = () => {
+    shiftPx = cssPx("--chibi-shift");
+    frameT = [cssPx("--frame-top"), cssPx("--frame-bottom")];
+    frameK ??= [...frameT]; // no easing on first paint
+  };
   readShift();
   function applyShift() {
-    const off = Math.round(shiftPx * (1 - miniK)), key = `${width},${height},${off}`;
+    const k = 1 - miniK, off = Math.round(shiftPx * k), top = Math.round(frameK[0] * k);
+    const boxH = Math.max(1, height - top - Math.round(frameK[1] * k));
+    const key = `${width},${height},${off},${top},${boxH}`;
     if (key === viewKey) return;
     viewKey = key;
-    if (off) camera.setViewOffset(width, height, -off, 0, width, height); else camera.clearViewOffset();
+    camera.aspect = width / boxH;
+    if (off || boxH !== height) camera.setViewOffset(width, boxH, -off, -top, width, height); else camera.clearViewOffset();
   }
   const frameFull = (aspect) => { fullZ = aspect < 0.8 ? 7 : 5.2; fullY = aspect < 0.8 ? 1.2 : 1.05; };
-  frameFull(innerWidth / innerHeight);
+  frameFull(innerWidth / Math.max(1, innerHeight - frameT[0] - frameT[1])); // the full-size frame, even if starting mini
 
   function animate() {
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -885,12 +924,13 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     }
     let gestS = armS, gestArm = null;
     if (mood === "thinking" && model) { gestArm = model.userData.rig.left; gestS = [4, 0.5]; }
-    // pointer cursor wherever a click does something (high five or spin). Raycasting the skinned mesh
-    // is costly, so only re-check after the cursor moves, at most ~10x a second.
-    if (model && cursorMoved && t - hoverAt > 0.1) {
+    // pointer cursor wherever a click does something (high five or spin). Only re-checked after the cursor
+    // moves, at most ~10x a second, one pick at a time.
+    if (model && cursorMoved && !picking && t - hoverAt > 0.1) {
       cursorMoved = false; hoverAt = t;
-      const clickable = (canHighFive() && !!reachFor(cursorPx)) || onChibi(cursorPx);
-      renderer.domElement.style.cursor = clickable ? "pointer" : "";
+      const setCursor = (on) => { renderer.domElement.style.cursor = on ? "pointer" : ""; };
+      if (canHighFive() && reachFor(cursorPx)) setCursor(true);
+      else { picking = true; onChibiAsync(cursorPx).then((hit) => { picking = false; setCursor(hit); }); }
     }
     if (fiveT >= 0 && mood !== "idle") fiveT = -1; // a question interrupts it
     if (fiveT >= 0) {
@@ -1006,20 +1046,33 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
 
     // keep framing nice on narrow screens; closer in when mini
     miniK = lerp(miniK, miniT, 1 - Math.exp(-dt * 6));
-    if (miniT === 0 && miniK < 0.001) frameFull(width / height);
+    // the frame follows the CSS (it changes as the chat opens and closes on phones), easing at about the CSS pace
+    if (t - cssAt > 0.2) { cssAt = t; readShift(); }
+    for (let i = 0; i < 2; i++) frameK[i] = lerp(frameK[i], frameT[i], 1 - Math.exp(-dt * 6));
+    if (miniT === 0 && miniK < 0.001) frameFull(camera.aspect);
     // mini: frames y -0.1 .. 2.7 so the head stays in the small canvas at the top of a hop (+stretch)
     camera.position.z = lerp(fullZ, 4.9, miniK);
     camera.lookAt(0, lerp(fullY, 1.3, miniK), 0);
     applyShift();
 
     renderer.render(scene, camera);
-    frame = requestAnimationFrame(animate);
+  }
+  // every other refresh on 120 Hz+ screens (ProMotion Macs, many phones): twice the drawing for no visible
+  // gain. Up to 100 Hz every refresh is drawn (a 90 Hz phone halved would only get 45 fps). The animation
+  // runs on elapsed time, so skipped screen refreshes just mean bigger steps.
+  let lastFrameAt = -Infinity;
+  function tick(now) {
+    frame = requestAnimationFrame(tick);
+    if (now - lastFrameAt < 9.5) return;
+    lastFrameAt = now;
+    animate();
   }
 
   const resizeObserver = new ResizeObserver(() => {
     readShift();
     width = container.clientWidth || 1; height = container.clientHeight || 1;
-    camera.aspect = width / height; camera.updateProjectionMatrix(); applyShift();
+    applyShift();
+    renderer.setPixelRatio(pixelRatio());
     renderer.setSize(width, height);
     renderer.render(scene, camera); // resizing clears the canvas; redraw now so it doesn't flicker mid-animation
   });
@@ -1036,6 +1089,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   }
 
   animate(); // start last, once everything it touches is declared
+  frame = requestAnimationFrame(tick);
 
   const controls = {
     // a question was asked: ponder
@@ -1090,6 +1144,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       if (model) body.remove(model); // keep the cached model itself alive for the next mount
       envMap.dispose(); pmrem.dispose();
       blob.geometry.dispose(); blob.material.dispose(); blobTex.dispose();
+      pickTarget.dispose();
       renderer.dispose(); renderer.forceContextLoss();
       renderer.domElement.remove();
     },
