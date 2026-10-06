@@ -9,16 +9,12 @@ class PersonaPrompt
 {
     public function build(): string
     {
-        // re-read so edits apply live; fall back to the template on a fresh clone
-        $path = config('services.chat.persona_path');
-        if (! is_file($path)) {
-            $path = dirname($path).'/persona.example.md';
-        }
-        $prompt = trim(file_get_contents($path));
+        $prompt = $this->persona();
 
         $known = Knowledge::orderBy('id')->get(['question', 'answer']);
         if ($known->isNotEmpty()) {
-            $prompt .= "\n\nThings I've already answered (these are facts about me too):";
+            $prompt .= "\n\nAnswers I've given since, newest last. They're facts about me too, and they're newer than the above:"
+                ." if one contradicts something above, the answer wins, and a later answer beats an earlier one.";
             foreach ($known as $k) {
                 $prompt .= "\n- Q: {$k->question}\n  A: {$k->answer}";
             }
@@ -34,5 +30,16 @@ class PersonaPrompt
         if X isn't mentioned above, that doesn't mean I dislike it or never got into it, so forward it instead of answering.
         Don't call it for greetings, small talk or questions that aren't about me, and never guess.
         TXT;
+    }
+
+    public function persona(): string
+    {
+        // re-read so edits apply live; fall back to the template on a fresh clone
+        $path = config('services.chat.persona_path');
+        if (! is_file($path)) {
+            $path = dirname($path).'/persona.example.md';
+        }
+
+        return trim(file_get_contents($path));
     }
 }

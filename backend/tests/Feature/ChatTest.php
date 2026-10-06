@@ -79,7 +79,8 @@ class ChatTest extends TestCase
 
         $this->ask('Favourite pasta?')->streamedContent();
 
-        Http::assertSent(fn (Request $r) => str_contains($r['messages'][0]['content'], 'Carbonara, made the Roman way.'));
+        Http::assertSent(fn (Request $r) => str_contains($r['messages'][0]['content'], 'Carbonara, made the Roman way.')
+            && str_contains($r['messages'][0]['content'], 'a later answer beats an earlier one'));
     }
 
     public function test_forwarding_is_capped_per_conversation(): void

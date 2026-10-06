@@ -11,6 +11,8 @@ use App\Models\Question;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -28,6 +30,12 @@ class AdminTest extends TestCase
         $this->actingAs(User::factory()->create(['email' => 'admin@example.com']));
 
         $this->chat = Conversation::create(['id' => (string) Str::uuid(), 'ip_hash' => 'x']);
+        Http::preventStrayRequests();
+    }
+
+    private function conflicts(array $conflicts): void
+    {
+        Http::fake(['*' => Http::response(['choices' => [['message' => ['content' => json_encode(['conflicts' => $conflicts])]]]])]);
     }
 
     private function pending(string $text): Question
@@ -57,6 +65,7 @@ class AdminTest extends TestCase
     public function test_answering_turns_a_question_into_knowledge(): void
     {
         $question = $this->pending('fav pasta');
+        $this->conflicts([]);
 
         Livewire::test(ListQuestions::class)
             ->assertCanSeeTableRecords([$question])
@@ -102,5 +111,34 @@ class AdminTest extends TestCase
 
         $this->assertSame('Do you like jazz?', Question::sole()->question);
         $this->assertTrue($message->fresh()->forwarded);
+    }
+
+    public function test_answering_warns_about_a_contradiction(): void
+    {
+        $old = Knowledge::create(['question' => 'Pets?', 'answer' => 'No pets.']);
+        $question = $this->pending('Do you have a cat?');
+        $this->conflicts([['source' => "answer #{$old->id}", 'text' => 'No pets.', 'reason' => 'Now you have a cat.']]);
+
+        Livewire::test(ListQuestions::class)
+            ->callAction(TestAction::make('answer')->table($question), data: ['question' => 'Do you have a cat?', 'answer' => 'Yes, Mochi.'])
+            ->assertNotified('This contradicts something the chibi already knows');
+
+        // the new answer is still saved, and the check only saw the older facts
+        $this->assertSame('Yes, Mochi.', Knowledge::latest('id')->value('answer'));
+        Http::assertSent(fn (Request $r) => str_contains($r['messages'][1]['content'], "answer #{$old->id}")
+            && ! str_contains($r['messages'][1]['content'], 'answer #'.($old->id + 1)));
+    }
+
+    public function test_a_failed_check_still_saves_quietly(): void
+    {
+        $question = $this->pending('Do you have a cat?');
+        Http::fake(['*' => Http::response('upstream down', 503)]);
+
+        Livewire::test(ListQuestions::class)
+            ->callAction(TestAction::make('answer')->table($question), data: ['question' => 'Do you have a cat?', 'answer' => 'Yes.'])
+            ->assertHasNoFormErrors()
+            ->assertNotNotified('This contradicts something the chibi already knows');
+
+        $this->assertSame(Question::ANSWERED, $question->fresh()->status);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Questions\Tables;
 
 use App\Filament\Resources\Conversations\ConversationResource;
 use App\Models\Question;
+use App\Services\ConflictCheck;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -57,8 +58,9 @@ class QuestionsTable
                         Textarea::make('answer')->required()->rows(5)->maxLength(2000)->autofocus(),
                     ])
                     ->action(function (array $data, Question $record) {
-                        $record->answer($data['question'], $data['answer']);
+                        $knowledge = $record->answer($data['question'], $data['answer']);
                         Notification::make()->title('Saved. The chibi knows this now.')->success()->send();
+                        app(ConflictCheck::class)->warn($knowledge->question, $knowledge->answer, $knowledge->id);
                     }),
                 Action::make('chat')
                     ->label('View chat')
