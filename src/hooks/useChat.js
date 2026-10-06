@@ -1,4 +1,7 @@
 import { useCallback, useRef, useState } from "react";
+import { OOPS } from "../content.js";
+
+const OOPS_MARK = "\x1e"; // the server ends a failed reply with this plus "credit" or "glitch" (see ChatController)
 
 // Chat history + streaming /api/chat. Drives the chibi's moods through chibiRef as the reply arrives.
 export function useChat(chibiRef) {
@@ -16,6 +19,14 @@ export function useChat(chibiRef) {
     chibiRef.current?.think();
 
     let answer = "";
+    let oops = null; // failure kind the server sent after OOPS_MARK, or "glitch" when the request itself failed
+    let started = false;
+    const say = (text) => {
+      if (!started) { started = true; chibiRef.current?.startTalking(); }
+      answer += text;
+      chibiRef.current?.speakChunk(text);
+      setMessages([...history.current, { role: "assistant", content: answer, pending: true }]);
+    };
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -24,19 +35,23 @@ export function useChat(chibiRef) {
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
-      let started = false;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = dec.decode(value, { stream: true });
-        if (!started) { started = true; chibiRef.current?.startTalking(); }
-        answer += chunk;
-        chibiRef.current?.speakChunk(chunk);
-        setMessages([...history.current, { role: "assistant", content: answer, pending: true }]);
+        let chunk = dec.decode(value, { stream: true });
+        if (oops !== null) { oops += chunk; continue; }
+        const at = chunk.indexOf(OOPS_MARK);
+        if (at >= 0) { oops = chunk.slice(at + 1); chunk = chunk.slice(0, at); }
+        if (chunk) say(chunk);
       }
     } catch (err) {
-      answer = "Oops, my brain glitched. Try again in a sec?";
+      oops = "glitch";
       console.error(err);
+    }
+    if (oops !== null) {
+      // a lost reply can be picked up again, an empty wallet can't, so the credit lines win even mid-reply
+      const pool = oops === "credit" ? OOPS.credit : answer.trim() ? OOPS.midReply : OOPS.glitch;
+      say((answer ? " " : "") + pool[Math.floor(Math.random() * pool.length)]);
     }
     history.current = [...history.current, { role: "assistant", content: answer }];
     setMessages(history.current);

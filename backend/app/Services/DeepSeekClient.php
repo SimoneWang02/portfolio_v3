@@ -4,7 +4,6 @@ namespace App\Services;
 
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 
 // Streaming chat completions against DeepSeek's OpenAI-compatible API.
 class DeepSeekClient
@@ -31,9 +30,7 @@ class DeepSeekClient
             ->withOptions(['stream' => true])
             ->timeout(60)
             ->post(config('services.deepseek.url'), $payload);
-        if ($response->failed()) {
-            throw new RuntimeException("DeepSeek returned {$response->status()}: ".substr($response->body(), 0, 200));
-        }
+        $response->throw(); // a RequestException, so callers can tell a 402 (balance ran out) from other failures
 
         $content = '';
         $calls = []; // tool calls arrive in fragments keyed by index

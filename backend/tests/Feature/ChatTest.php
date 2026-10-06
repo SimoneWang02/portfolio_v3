@@ -95,6 +95,21 @@ class ChatTest extends TestCase
         $this->assertSame(3, Question::count());
     }
 
+    public function test_empty_balance_sends_the_credit_marker_instead_of_the_error(): void
+    {
+        Http::fake(['*' => Http::response(['error' => ['message' => 'Insufficient Balance']], 402)]);
+
+        $this->assertSame("\x1ecredit", $this->ask('Who are you?')->streamedContent());
+        $this->assertSame(['user'], Message::pluck('role')->all());
+    }
+
+    public function test_other_failures_send_the_glitch_marker(): void
+    {
+        Http::fake(['*' => Http::response('upstream down', 503)]);
+
+        $this->assertSame("\x1eglitch", $this->ask('Who are you?')->streamedContent());
+    }
+
     public function test_rejects_bad_payloads(): void
     {
         $this->postJson('/api/chat', ['conversationId' => 'nope', 'messages' => []])->assertStatus(422);

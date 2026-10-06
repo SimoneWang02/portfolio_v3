@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Question;
 use App\Services\DeepSeekClient;
 use App\Services\PersonaPrompt;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -20,6 +21,9 @@ class ChatController extends Controller
     private const MAX_CHARS = 1000;
     private const MAX_FORWARDS_PER_CHAT = 3;
     private const MAX_FORWARDS_PER_DAY = 10;
+
+    // Ends a failed reply: followed by "credit" (DeepSeek balance ran out) or "glitch"; the frontend swaps in a friendly line.
+    private const OOPS_MARK = "\x1e";
 
     private const FORWARD_TOOL = [
         'type' => 'function',
@@ -86,7 +90,8 @@ class ChatController extends Controller
                 }
             } catch (Throwable $e) {
                 report($e);
-                echo "[error] {$e->getMessage()}";
+                $credit = $e instanceof RequestException && $e->response->status() === 402;
+                echo self::OOPS_MARK.($credit ? 'credit' : 'glitch');
             } finally {
                 if (trim($reply) !== '') {
                     $this->log($conversation, 'assistant', $reply);

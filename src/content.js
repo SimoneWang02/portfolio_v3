@@ -2,6 +2,32 @@
 export const NAME = "Simone Wang";
 export const GREETING = "Hey there! I'm mini-Simone. Ask me anything.";
 export const CHIPS = ["Who are you?", "What are you working on?", "How can I reach you?"];
+// What the chibi says when a reply fails, one line picked at random (no emoji, like the persona).
+// credit: the DeepSeek balance ran out; glitch: anything else; midReply: appended to a glitched reply that had already started.
+export const OOPS = {
+  credit: [
+    "My brain's running on empty right now, so I can't chat. Email me at simone.wang2002@gmail.com and the real me will answer!",
+    "Ah, I've talked so much today that I ran out of words. The real me still reads email though: simone.wang2002@gmail.com.",
+    "I'm out of thinking juice for the moment. Send me an email and I'll get back to you properly.",
+    "Little me needs a recharge before I can chat again. In the meantime, my email and LinkedIn are up in the top-right corner!",
+    "Sorry, my chat battery is flat. Write to simone.wang2002@gmail.com and you'll get the full-size version of me.",
+    "I've run out of tokens and my budget can't buy more until the next paycheck. The real me answers email for free though: simone.wang2002@gmail.com.",
+    "Small problem: tokens cost money and I'm a student. Hire me as an intern and I'll top up right away! Until then, email works.",
+    "My wallet says no more chatting today. You can still reach me by email or on LinkedIn, and both are free!",
+  ],
+  glitch: [
+    "Oops, my brain glitched. Try again in a sec?",
+    "Hmm, I lost my train of thought there. Could you ask me again?",
+    "Wait, I totally blanked. One more time?",
+    "Sorry, I zoned out for a moment! Mind repeating that?",
+    "My thoughts got tangled up. Give me another try?",
+  ],
+  midReply: [
+    "…sorry, I lost my train of thought. Ask me again?",
+    "…wait, where was I? Try asking again!",
+    "…and my brain just froze. One more try?",
+  ],
+};
 export const LINKS = {
   linkedin: "https://www.linkedin.com/in/simone-wang-b7024a256",
   github: "https://github.com/SimoneWang02",

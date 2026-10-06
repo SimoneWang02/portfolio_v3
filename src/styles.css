@@ -94,6 +94,38 @@ h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
 @keyframes pulse { to { transform: scale(2.8); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
 
+/* Spotify card, bottom-left on Home. Outside .hero and above the chibi canvas so it can be clicked. */
+.now-playing {
+  position: fixed; z-index: 2; left: clamp(16px, 3vw, 32px); bottom: clamp(16px, 3vw, 32px);
+  display: flex; align-items: center; gap: 12px; width: 300px; padding: 10px 16px 12px 10px; overflow: hidden;
+  color: var(--ink); text-decoration: none;
+  background: var(--card); backdrop-filter: blur(10px); border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(30,27,75,.08), var(--shadow);
+  animation: np-in .4s ease-out; transition: transform .2s;
+}
+.now-playing:hover { transform: translateY(-2px); }
+@keyframes np-in { from { opacity: 0; transform: translateY(8px); } }
+.np-art { flex: none; width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: #e5e7eb; }
+.np-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.np-label { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); }
+.np-label svg { width: 13px; height: 13px; color: #1ed760; }
+.np-title, .np-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-title { font-weight: 600; }
+.np-artist { font-size: .85rem; color: var(--muted); }
+.np-bar {
+  position: absolute; left: 0; bottom: 0; width: 100%; height: 3px; background: #1ed760;
+  transform-origin: left; transform: scaleX(var(--from));
+}
+.np-bar.run { animation: np-progress linear forwards; }
+@keyframes np-progress { from { transform: scaleX(var(--from)); } to { transform: scaleX(1); } }
+/* equalizer bars while a song is playing */
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; }
+.eq span { width: 2px; height: 100%; border-radius: 1px; background: #1ed760; transform-origin: bottom;
+           animation: eq .8s ease-in-out infinite alternate; }
+.eq span:nth-child(2) { animation-delay: -.3s; } .eq span:nth-child(3) { animation-delay: -.55s; }
+@keyframes eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .now-playing, .eq span { animation: none; transition: none; } }
+
 /* full-bleed on Home; on other pages it shrinks into a small bottom-left companion (.mini).
    Explicit left/top/width/height on both ends so the change animates. The mini box leaves headroom
    above the chibi for its hops (framing in createChibi.js). */
@@ -294,6 +326,7 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
   .blurb li + li { margin-top: 4px; }
   .status { margin-top: 10px; }
   .dock { left: 8px; right: 8px; width: auto; }
+  .now-playing { display: none; } /* the bottom-left corner belongs to the chat sheet here */
   .stage { --mini-w: 110px; --mini-h: 155px; }
   .stage.mini { top: calc(100dvh - var(--mini-h) - var(--mini-gap) - var(--dock-header)); }
   .dock-body { height: min(55dvh, 460px); }
