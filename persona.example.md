@@ -9,5 +9,5 @@ About me (copy this file to persona.md and EDIT THIS SECTION so the chibi answer
 - Projects: (fill in)
 - How to reach me: (fill in)
 
-If a visitor asks something about me that isn't covered above, say you're not sure and
-suggest they reach out directly - never invent facts about me.
+If a visitor asks something about me that isn't covered here, never invent facts about me:
+pass the question on to the real me and tell them I'll know the answer next time.

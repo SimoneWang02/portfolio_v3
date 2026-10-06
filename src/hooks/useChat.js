@@ -5,6 +5,7 @@ export function useChat(chibiRef) {
   const [messages, setMessages] = useState([]);
   const [busy, setBusy] = useState(false);
   const history = useRef([]); // source of truth for what we send; `messages` mirrors it for rendering
+  const conversationId = useRef(crypto.randomUUID()); // one logged conversation per page load
 
   const ask = useCallback(async (raw) => {
     const q = raw.trim();
@@ -18,7 +19,7 @@ export function useChat(chibiRef) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.current }),
+        body: JSON.stringify({ conversationId: conversationId.current, messages: history.current }),
       });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();

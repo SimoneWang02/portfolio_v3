@@ -80,6 +80,7 @@ export default function ChatPanel({ messages, busy, ask, collapsed }) {
             </svg>
           </button>
         </form>
+        <p className="chat-note">Chats are saved so I can improve my answers.</p>
       </div>
     </aside>
   );

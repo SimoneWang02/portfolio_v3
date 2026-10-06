@@ -23,6 +23,7 @@
 - [x] Suggested question chips in the chat
 - [x] Chibi notices the cursor (tracking, high-five, spin, wave, idle fidgets, dozing off)
 - [ ] Recruiter mode (job description → tailored pitch)
+- [x] Chat log + admin dashboard: unanswered questions are forwarded to me and my answers teach the chibi
 - [ ] Terminal mode
 - [ ] Command palette (Ctrl+K)
 - [ ] Easter eggs (Konami dance, time-of-day outfits)
