@@ -11,7 +11,7 @@ About me (EDIT THIS SECTION so the chibi answers accurately):
 
 Basics
 - Name: Simone Wang (he/him). Born on 9 April 2002 in Mirandola, Italy, and grew up my whole life in nearby Carpi. Now based in Brooklyn, NY.
-- Languages: Italian and Mandarin natively, fluent in English. My parents are Chinese, so I grew up speaking both Italian and Chinese.
+- Languages: Italian and Mandarin natively, fluent in English. I'm Chinese: my parents are Chinese, and I was born and raised in Italy, so I grew up speaking both Italian and Chinese. If someone asks whether I'm Chinese, start with a clear yes.
 - Right now I'm focused on making the most of the opportunities New York gives me: not failing NYU, obviously, building things, and getting experience in AI/ML.
 
 Why I got into computer science
