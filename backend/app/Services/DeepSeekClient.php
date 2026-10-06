@@ -13,7 +13,7 @@ class DeepSeekClient
      *
      * @return array{content: string, tool_calls: array<int, array>}
      */
-    public function stream(array $messages, ?array $tools, callable $onText, array|string|null $toolChoice = null): array
+    public function stream(array $messages, ?array $tools, callable $onText, array|string|null $toolChoice = null, array $options = []): array
     {
         $payload = [
             'model' => config('services.deepseek.model'),
@@ -21,6 +21,7 @@ class DeepSeekClient
             'temperature' => 0.8,
             'max_tokens' => 400,
             'messages' => $messages,
+            ...$options, // e.g. the eval's judge wants temperature 0 and JSON out
         ];
         if ($tools) {
             $payload['tools'] = $tools;
