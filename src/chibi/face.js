@@ -32,10 +32,6 @@ const FACE_GLSL = `
   const vec3 TEETH_COLOR = vec3(0.82, 0.80, 0.76);             // off-white: pure white glares under the key light
   const vec3 MOUTH_DARK = vec3(0.05, 0.008, 0.012), MOUTH_DEEP = vec3(0.16, 0.025, 0.035);
   const vec3 TONGUE_TOP = vec3(0.62, 0.14, 0.16), TONGUE_BASE = vec3(0.36, 0.06, 0.08);
-  // happy face: cheek blush under each eye (x offset from the middle, y), radii, and tone (linear)
-  const vec2 BLUSH = vec2(0.14, 0.688);
-  const vec2 BLUSH_SIZE = vec2(0.05, 0.02);
-  const vec3 BLUSH_COLOR = vec3(0.92, 0.28, 0.26);
   // hair tone (linear). Tripo projected the texture from the front, so the hidden undersides of the
   // fringe (and the inner sides of the hair at the temples) got skin painted on them; those faces are
   // found by their bind-pose normal and repainted with this.
@@ -131,8 +127,6 @@ export function addFace(material, faceU) {
           lidMask = l;
           diffuseColor.rgb = mix(diffuseColor.rgb, LID_COLOR, l.x);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.02, 0.02), l.y);
-          vec2 bd = (vec2(abs(vFace.x - 0.5), vFace.y) - BLUSH) / BLUSH_SIZE;
-          diffuseColor.rgb = mix(diffuseColor.rgb, BLUSH_COLOR, uHappy * 0.5 * (1.0 - smoothstep(0.1, 1.0, dot(bd, bd))) * gate);
           // mouth: the lips part at the seam; the cavity opens below it and the lower lip is redrawn
           // under the opening (covering the painted one), so it reads as the jaw dropping
           // a happy grin opens wider and fuller, with the top teeth showing

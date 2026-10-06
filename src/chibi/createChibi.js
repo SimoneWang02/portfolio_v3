@@ -5,7 +5,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { addFace } from "./face.js";
 import { spring, stepSpring } from "./spring.js";
 import { mouthFor, durationOf, paceFor, isSelfWord } from "./speech.js";
-import { GREETING, NAME } from "../content.js";
+import { NAME } from "../content.js";
 
 const MODEL_URL = "/chibi-rigged.glb"; // Tripo mesh + Mixamo rig, webp textures + meshopt (1.2 MB)
 
@@ -15,7 +15,7 @@ const faceU = {
   uBMin: { value: new THREE.Vector3() }, uBMax: { value: new THREE.Vector3(1, 1, 1) },
   uBlink: { value: 0 },  // 0 open .. 1 closed
   uMouth: { value: 0 },  // 0 closed .. 1 wide open
-  uHappy: { value: 0 },  // 0 .. 1: eyes shut in happy arches, a toothy grin, blush
+  uHappy: { value: 0 },  // 0 .. 1: eyes shut in happy arches, a toothy grin
 };
 
 // "eyesShut" morph (scripts/eye-morph.mjs): flattens the sculpted eyes so painted-shut lids lie smooth
@@ -56,6 +56,20 @@ function rigArm(model, side) {
     len: a.distanceTo(b) + b.distanceTo(h),             // shoulder -> wrist
     sign: Math.sign(dir.x),                             // +1: arm on the screen-right side
     elbowAxis: new THREE.Vector3().crossVectors(dir, Z).normalize(), // +angle bends the forearm forward
+  };
+}
+
+function rigLeg(model, side) {
+  const up = rigBone(model, `mixamorig${side}UpLeg`), knee = rigBone(model, `mixamorig${side}Leg`);
+  const foot = rigBone(model, `mixamorig${side}Foot`);
+  const pos = (r) => r.bone.getWorldPosition(new THREE.Vector3());
+  const a = pos(up), b = pos(knee), c = pos(foot);
+  const toe = model.getObjectByName(`mixamorig${side}ToeBase`).getWorldPosition(new THREE.Vector3());
+  return {
+    up, knee, foot,
+    thigh: a.distanceTo(b), shin: b.distanceTo(c),
+    toe: Math.hypot(toe.z - c.z, c.y - toe.y),  // ankle -> ball of the foot, the pivot when the heel lifts
+    sign: Math.sign(a.x),                        // +1: leg on the screen-right side
   };
 }
 
@@ -144,11 +158,15 @@ function loadModel() {
         if (k !== undefined) eyesShut = { influences: o.morphTargetInfluences, index: k };
       });
       const arms = [rigArm(model, "Left"), rigArm(model, "Right")];
+      const legs = [rigLeg(model, "Left"), rigLeg(model, "Right")];
       model.userData.rig = {
+        hips: rigBone(model, "mixamorigHips"),
+        spines: [rigBone(model, "mixamorigSpine"), rigBone(model, "mixamorigSpine1")],
         neck: rigBone(model, "mixamorigNeck"),
         head: rigBone(model, "mixamorigHead"),
         spine: rigBone(model, "mixamorigSpine2"),
-        legs: [rigBone(model, "mixamorigLeftUpLeg"), rigBone(model, "mixamorigRightUpLeg")], // swung while walking in
+        legs, // walked on during the entrance
+        legLen: legs[0].thigh + legs[0].shin,
         // head's rest pose in the model's parent space (the model isn't parented yet), for the name tag
         headRest: {
           pos: model.getObjectByName("mixamorigHead").getWorldPosition(new THREE.Vector3()),
@@ -220,6 +238,64 @@ function aimPalm(model, a, palmDir, w, tilt = 0) {
   _q3.slerp(_q2.identity(), 1 - FORE_ROLL);
   a.fore.bone.quaternion.multiply(_q3);                                 // roll the forearm about its axis...
   a.hand.bone.quaternion.copy(_q3.invert()).multiply(_q4);              // ...and take it back out of the wrist
+}
+
+// ---------- entrance choreography ----------
+const smooth = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+const EASE = {
+  io: (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2), // ease in-out (cubic)
+  o: (x) => 1 - (1 - x) ** 3,                                     // ease out: fast, then settling
+  i: (x) => x * x * x,                                            // ease in: accelerating
+  bo: (x) => 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2,         // ease out, overshooting ~8% then settling
+};
+// keyframe track: [[time, value, ease of the segment arriving at this key], ...]
+function track(keys, t) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, v1, ease = "io"] = keys[i];
+    if (t < t1) { const [t0, v0] = keys[i - 1]; return v0 + (v1 - v0) * EASE[ease]((t - t0) / (t1 - t0)); }
+  }
+  return keys[keys.length - 1][1];
+}
+// The peek (s): a slow, cautious lean out until the eyes clear the edge (overshooting a little); a glance
+// ahead, then spotting the visitor, with a curious head tilt, a blink and a grin. `lean` is the sideways
+// lean (rad, spread from the ankles up through the spine), `slide` a half-step toward the edge, `look`
+// the head's turn toward the visitor.
+const PEEK = {
+  lean: [[0, 0], [0.4, 0], [1.45, 0.46, "bo"], [2.7, 0.48]],
+  slide: [[0, 0], [0.4, 0], [1.45, 0.3, "io"]],
+  look: [[0, -0.25], [1.1, -0.25], [1.45, -0.05], [1.8, -0.42, "o"], [2.7, -0.34]],
+  tilt: [[0, 0], [1.85, 0], [2.25, -0.2], [2.7, -0.14]],                  // curious head tilt
+};
+const PEEK_OUT = 2.7, PEEK_YAW = 0.35;  // when it steps out; body turned a little toward the middle meanwhile
+const WALK_YAW = 1.05;  // 3/4 profile while walking, the head turned to keep an eye on the visitor
+const WALK_V = 1.45, WALK_ACC = 3.2, WALK_DEC = 1.4, CADENCE = 2.1; // units/s, units/s², cycles/s at full speed
+const STANCE = 0.6;     // fraction of the walk cycle a foot is planted
+
+// knee bend through the cycle (× stride size): never locked straight, so the walk stays soft and bouncy.
+// Planted: lands with a soft knee, sinks into it taking the weight, rises over the foot, bends for the push-off.
+// Swinging: folds right up to lift the foot clear, then reaches out to land.
+const KNEE_STANCE = [[0, 0.25], [0.2, 0.45], [0.5, 0.28], [1, 0.6]];
+const KNEE_SWING = [[0, 0.6], [0.35, 1.4], [1, 0.25]];
+
+// one leg's pose at walk phase `ph` (0..1, heel strike at 0) for stride amplitude A (rad):
+// hip swing (+ forward), knee bend, extra foot pitch (+ toes down) on top of keeping the foot flat
+const _leg = { hip: 0, knee: 0, toes: 0 };
+function gaitLeg(ph, A) {
+  const g = Math.min(1.2, A / 0.45);              // stride size relative to a full walking stride
+  if (ph < STANCE) {                              // planted: the body vaults over the foot
+    const s = ph / STANCE;
+    _leg.hip = A * (1 - 2 * s);
+    _leg.knee = g * track(KNEE_STANCE, s);
+    // lands on the heel and rolls flat, then the heel peels up for the push-off
+    _leg.toes = g * (0.55 * smooth((s - 0.6) / 0.4) - 0.25 * (1 - smooth(s / 0.15)));
+  } else {                                        // swinging through: knee folds to clear the floor
+    const u = (ph - STANCE) / (1 - STANCE);
+    _leg.hip = -A * Math.cos(Math.PI * u);
+    _leg.knee = g * track(KNEE_SWING, u);
+    _leg.toes = g * (0.55 * (1 - smooth(u / 0.3)) - 0.25 * smooth((u - 0.55) / 0.45)); // toes up to meet the floor
+  }
+  return _leg;
 }
 
 const GRAVITY = 16, HOP_H = 0.35;  // a full-power hop: 0.35 units high, ~0.4 s in the air
@@ -433,27 +509,29 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     return best;
   }
 
-  // say hi: a hop, then a wave (beaming), then the greeting once the wave is done
+  // say hi: a hop, then a wave (beaming)
   function greet() {
     hop(1);
     later(() => { waveT = 0; grin(1.6); }, 250);
   }
 
-  // entrance: hidden just past the stage's left edge, lean in to peek at the visitor, then pop out
-  // and hop-walk to the middle, where it turns to face them and greets
-  // peek timeline (s): a cautious peek, duck back, a bolder peek with a blink and a grin, then step out
-  const PEEK_IN = 0.4, PEEK_DUCK = 1.15, PEEK_AGAIN = 1.55, PEEK_OUT = 3;
-  let enter = null;                       // { t, x } while entering
-  const peekS = spring(), walkK = spring(); // lean (body roll) / how much it's walking (0..1)
+  // entrance: hidden just past the stage's left edge, it leans out to peek at the visitor (see PEEK),
+  // then falls out of the lean into a walk to the middle, turns to face them (head first) and greets
+  // phases: "peek" -> "walk" -> "turn"
+  let enter = null;                       // { t, phase, x0, x, v, a } while entering
   const tagS = spring(1);                 // name tag size: hidden while peeking, pops up on stepping out
-  let walkPh = 0;                         // leg swing phase
+  const gait = { ph: 0, A: 0 };           // walk cycle phase (cycles) and stride amplitude (hip swing, rad)
+  const legPose = [{ hip: 0, knee: 0, toes: 0 }, { hip: 0, knee: 0, toes: 0 }]; // this frame's, per rig.legs
+  const upperLean = spring();             // upper body pitch, lagging behind speed changes (overlapping action)
+  const bodyPitch = spring();             // whole-body lean into the walk
   function startEntrance() {
     const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * fullZ * (width / height);
     // the screen's left edge, allowing for the view being shifted right (shiftPx)
-    enter = { t: 0, x: -halfW * (1 + 2 * shiftPx / width) - 0.5 }; // just far enough out that the big head is hidden
-    tagS.x = 0;
+    const x0 = -halfW * (1 + 2 * shiftPx / width) - 0.55; // just far enough out that the big head is hidden
+    enter = { t: 0, phase: "peek", x0, x: x0, v: 0, a: 0 };
+    tagS.x = 0; gait.A = 0;
   }
-  function endEntrance() { enter = null; root.position.x = 0; }
+  function endEntrance() { enter = null; root.position.x = 0; gait.A = 0; }
 
   function hop(power = 1) {
     if (hopPhase) { nextHop = Math.max(nextHop, power); return; } // already hopping: go again on landing
@@ -628,30 +706,65 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       if (!windup && Math.abs(spinS.x - Math.PI * 2) < 0.02 && Math.abs(spinS.v) < 0.3) { spinS.x = spinS.v = 0; spinT = -1; }
     }
 
-    // entrance: peek, then walk in with little hopping steps
-    let peekLean = 0, enterYaw = 0;
+    // entrance: peek (keyframed), then walk on and turn to face the visitor
+    let peekLean = 0, peekLook = 0, peekTilt = 0, enterYaw = 0, yawFreq = 2.5, turnA = 0;
     if (enter && model) {
-      enter.t += dt;
-      if (enter.t >= PEEK_IN && enter.t < PEEK_OUT) {
-        const at = (s) => enter.t - dt < s && enter.t >= s;   // crossed time s this frame
-        peekLean = enter.t < PEEK_DUCK ? 0.26 : enter.t < PEEK_AGAIN ? 0 : 0.44; enterYaw = 0.3;
-        if (at(PEEK_AGAIN + 0.5) && blinkT < 0) { blinkT = 0; doubleBlink = true; } // curious blink
-        if (at(PEEK_AGAIN + 0.9)) grin(0.6);                                          // spotted you
-      } else if (enter.t >= PEEK_OUT) {
-        if (enter.t - dt < PEEK_OUT) { hop(0.7); grin(0.8); } // pop out from behind the edge
-        enterYaw = 0.9;                                        // 3/4 turned toward the middle
-        const speed = 1.7 * Math.min(1, 0.35 + -enter.x / 0.6); // slow down for the last bit
-        enter.x = Math.min(0, enter.x + speed * dt);
-        if (!hopPhase && enter.t > PEEK_OUT + 0.4) hop(0.2);   // a little bounce per step
+      const e = enter, t0 = e.t;
+      e.t += dt;
+      const at = (s) => t0 < s && e.t >= s;   // crossed time s this frame
+      if (e.phase === "peek") {
+        peekLean = track(PEEK.lean, e.t); peekLook = track(PEEK.look, e.t); peekTilt = track(PEEK.tilt, e.t);
+        e.x = e.x0 + track(PEEK.slide, e.t);
+        enterYaw = PEEK_YAW;
+        if (at(1.2) && blinkT < 0) blinkT = 0;                          // settling in for a look
+        if (at(2.05) && blinkT < 0) { blinkT = 0; doubleBlink = true; } // curious double blink
+        if (at(2.3)) grin(1);                                           // there you are
+        if (e.t >= PEEK_OUT) { e.phase = "walk"; e.tOut = e.t; e.leanOut = peekLean; e.v = 0.9; }
       }
-      root.position.x = enter.x;
-      if (enter.x === 0) { endEntrance(); greet(); }
+      if (e.phase === "walk") {
+        // falls out of the lean into the first step: the lean unwinds while the body carries on forward
+        peekLean = e.leanOut * (1 - EASE.io(Math.min(1, (e.t - e.tOut) / 0.7)));
+        enterYaw = WALK_YAW; yawFreq = 2;
+        // accelerate to walking pace, then brake evenly to stop dead center
+        const dist = -e.x, v = Math.max(Math.min(WALK_V, e.v + WALK_ACC * dt, Math.sqrt(2 * WALK_DEC * dist)), 0.04);
+        e.a = (v - e.v) / dt; e.v = v;
+        e.x = Math.min(0, e.x + v * dt);
+        if (e.x === 0) { e.phase = "turn"; e.v = e.a = 0; }
+      }
+      if (e.phase === "turn") {
+        // head leads, then the body comes round with a couple of small shuffling steps
+        enterYaw = 0; yawFreq = 1.3;
+        turnA = Math.min(0.2, Math.abs(bodyYaw.v) * 0.07);
+        if (Math.abs(bodyYaw.x) < 0.03 && Math.abs(bodyYaw.v) < 0.2) { endEntrance(); greet(); }
+      }
+      if (enter) root.position.x = e.x;
     }
-    stepSpring(peekS, peekLean, 3, 0.55, dt);
-    stepSpring(walkK, enter && enter.t > PEEK_OUT ? 1 : 0, 3, 1, dt);
-    stepSpring(tagS, enter && enter.t < PEEK_OUT ? 0 : 1, 3, 0.45, dt);
-    walkPh += dt * 10.5 * walkK.x;
-    const legSwing = Math.sin(walkPh) * 0.45 * walkK.x;
+    stepSpring(tagS, enter && (enter.phase === "peek" || enter.t - enter.tOut < 0.35) ? 0 : 1, 3, 0.45, dt); // pops up once it's upright
+    // body lean into the walk, and the upper body lagging speed changes (pitching forward as it brakes)
+    stepSpring(bodyPitch, enter?.phase === "walk" ? 0.07 * enter.v / WALK_V : 0, 1.6, 0.8, dt);
+    stepSpring(upperLean, enter?.phase === "walk" ? -0.06 * enter.a / WALK_ACC : 0, 2.2, 0.4, dt);
+
+    // walk cycle: stride length follows speed, so the planted foot stays put on the floor
+    const L = model?.userData.rig.legLen ?? 1;
+    const walkV = enter?.phase === "walk" ? enter.v : 0;
+    const cadence = walkV > 0 ? CADENCE * (0.55 + 0.45 * walkV / WALK_V) : 2.2;
+    const vf = walkV / Math.sin(THREE.MathUtils.clamp(bodyYaw.x, 0.5, 1.4)); // speed along the way it faces
+    gait.A = Math.max(Math.asin(Math.min(0.6, vf * STANCE / (2 * L * cadence))), turnA);
+    if (gait.A > 0.003) gait.ph = (gait.ph + cadence * dt) % 1;
+    let gaitSway = 0;
+    if (model && gait.A > 0.003) {
+      const legs = model.userData.rig.legs;
+      let stand = 0;
+      for (let i = 0; i < 2; i++) {
+        const { hip, knee, toes } = gaitLeg((gait.ph + i * 0.5) % 1, gait.A);
+        const p = legPose[i]; p.hip = hip; p.knee = knee; p.toes = toes;
+        // how tall the leg stands (rising onto the ball of the foot as the heel lifts); the taller one is on the floor
+        stand = Math.max(stand, legs[i].thigh * Math.cos(hip) + legs[i].shin * Math.cos(knee - hip) + legs[i].toe * Math.sin(Math.max(0, toes)));
+      }
+      y += stand - L;
+      // hips shift over the planted foot
+      gaitSway = legs[0].sign * 0.03 * Math.min(1.2, gait.A / 0.45) * Math.sin(2 * Math.PI * (gait.ph - 0.05));
+    } else legPose[0].hip = legPose[1].hip = legPose[0].knee = legPose[1].knee = legPose[0].toes = legPose[1].toes = 0;
 
     // blink: quick close, slower open; sometimes a double blink
     if (blinkT < 0 && t >= nextBlink) { blinkT = 0; doubleBlink = Math.random() < 0.2; }
@@ -716,7 +829,11 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       } else if (fidget === "tilt") { tr = fidgetSide * 0.32; tp = -0.08; }
       tp = lerp(tp, 0.42, sleepK); ty *= 1 - sleepK; tr = lerp(tr, 0.12, sleepK); // chin on the chest
     }
-    if (enter) { tp = enter.t < PEEK_OUT ? 0.05 : -0.05; ty = -enterYaw * 0.6; tr = enter.t < PEEK_OUT ? 0.25 * peekS.x : 0; }
+    if (enter) {
+      if (enter.phase === "peek") { tp = 0.04; ty = peekLook; tr = 0.35 * peekLean + peekTilt; } // keeps the eyes nearer level than the lean
+      else if (enter.phase === "walk") { tp = -0.03; ty = -0.6 * bodyYaw.x; tr = 0.35 * peekLean; } // an eye on the visitor
+      else { tp = 0; ty = -bodyYaw.x; tr = 0; }                       // turning: the head gets there first
+    }
     if (Math.abs(ty - lastYaw) > 0.35 && blinkT < 0) { blinkT = 0; doubleBlink = false; } // blink on a big look
     lastYaw = ty;
     const hf = mood === "talking" ? 2 : 1.5;
@@ -735,9 +852,20 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     } else if (sleepK > 0.5) {
       tl = tr2 = { out: 0.14, fwd: 0.1, bend: 0.15 };                 // arms hang limp
     }
-    if (walkK.x > 0.01) { tl = { ...tl, fwd: tl.fwd - legSwing * 0.8 }; tr2 = { ...tr2, fwd: tr2.fwd + legSwing * 0.8 }; } // arms swing with the steps
-    // joint springs: the gesturing arm (if any) gets its own stiffness; [freq Hz, damping]
-    let armS = [1.4, 0.55], gestS = armS, gestArm = null;
+    // walking: each arm swings against the leg on its side, elbows relaxed and bent, folding up on the
+    // forward swing and opening on the back swing a beat behind the shoulder (the forearm trails)
+    let armS = [1.4, 0.55]; // joint springs [freq Hz, damping]; the gesturing arm (if any) gets its own
+    if (model && gait.A > 0.003) {
+      const legs = model.userData.rig.legs, k = legs[0].sign > 0 ? 0 : 1, w = Math.min(1, gait.A / 0.3);
+      const swing = (p, i) => {
+        const hip = legPose[i].hip, lagged = gaitLeg((gait.ph + i * 0.5 + 0.93) % 1, gait.A).hip / gait.A; // -1 .. 1
+        const bend = 0.85 + 0.5 * Math.max(0, -lagged) - 0.3 * Math.max(0, lagged);
+        return { ...p, out: p.out + 0.03 * w, fwd: p.fwd - 0.8 * hip, bend: lerp(p.bend, bend, w) };
+      };
+      tr2 = swing(tr2, k); tl = swing(tl, 1 - k);
+      armS = [2.4, 0.5];  // loose enough that the hands trail the shoulders a little
+    }
+    let gestS = armS, gestArm = null;
     if (mood === "thinking" && model) { gestArm = model.userData.rig.left; gestS = [4, 0.5]; }
     // pointer cursor wherever a click does something (high five or spin). Raycasting the skinned mesh
     // is costly, so only re-check after the cursor moves, at most ~10x a second.
@@ -781,7 +909,7 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
         gestArm = model.userData.rig.right; gestS = waveT < W0 ? [2.5, 0.75] : [4.5, 0.8];
       } else {
         waveT = -1;
-        nudge(1); speak(GREETING); // mouth only: the greeting text itself is shown in the chat panel
+        nudge(1); // no lip sync for the greeting: it only talks when answering a message
       }
     }
     lean = lerp(lean, fiveT > 0.45 ? 0.06 : 0, 1 - Math.exp(-dt * (fiveT > 0.45 ? 18 : 6)));
@@ -797,8 +925,20 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       _q.setFromEuler(_e);
       poseBone(rig.neck, _q2.identity().slerp(_q, 0.4));
       poseBone(rig.head, _q2.identity().slerp(_q, 0.6));
-      poseBone(rig.spine, _q.setFromAxisAngle(X, -breath * 0.015 + nod * 0.05));
-      poseBone(rig.legs[0], _q.setFromAxisAngle(X, legSwing)); poseBone(rig.legs[1], _q.setFromAxisAngle(X, -legSwing));
+      // torso: the peek's lean curves up through the spine; walking, the pelvis rolls and twists with the
+      // strides while the chest counter-twists, and the upper body pitches with speed changes
+      const twist = legPose[0].hip * rig.legs[0].sign + legPose[1].hip * rig.legs[1].sign; // which side's leg is forward
+      const pelvisRoll = gaitSway * 1.6;
+      poseBone(rig.hips, _q.setFromEuler(_e.set(0, -0.15 * twist, pelvisRoll, "YXZ")));
+      for (const s of rig.spines) poseBone(s, _q.setFromEuler(_e.set(upperLean.x * 0.3, 0.12 * twist, -0.15 * peekLean - 0.4 * pelvisRoll, "YXZ")));
+      poseBone(rig.spine, _q.setFromEuler(_e.set(-breath * 0.015 + nod * 0.05 + upperLean.x * 0.4, 0.06 * twist, -0.15 * peekLean, "YXZ")));
+      // legs: hip swing (+ forward), knee bend, and the foot kept flat to the floor plus its own roll
+      rig.legs.forEach((lg, i) => {
+        const { hip, knee, toes } = legPose[i];
+        poseBone(lg.up, _q.setFromAxisAngle(X, -hip));
+        poseBone(lg.knee, _q.setFromAxisAngle(X, knee));
+        poseBone(lg.foot, _q.setFromAxisAngle(X, hip - knee + toes));
+      });
       poseArm(rig.left, armL);
       poseArm(rig.right, armR);
       rig.left.hand.bone.quaternion.copy(rig.left.hand.rest); rig.right.hand.bone.quaternion.copy(rig.right.hand.rest);
@@ -813,11 +953,14 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
     // body: follows the pointer a little, leans in while talking (rolling with the head), sways while thinking
     // (while entering: turned toward the middle instead)
     stepSpring(bodyYaw, enter ? enterYaw : pointer.x * 0.25 * (1 - sleepK) + (mood === "thinking" ? thinkSide * 0.08 + Math.sin(t * 1.5) * 0.04 : 0),
-      enter ? 2.5 : 1, 0.7, dt);
+      enter ? yawFreq : 1, enter ? 0.75 : 0.7, dt);
     talkLean = lerp(talkLean, mood === "talking" ? 0.035 : 0, 1 - Math.exp(-dt * 4));
-    body.rotation.set(nod * 0.06 + lean + talkLean + sleepK * 0.05, bodyYaw.x + spinS.x,
+    // YXZ: pitch and roll are about the body's own axes, whichever way it's turned
+    body.rotation.set(nod * 0.06 + lean + talkLean + sleepK * 0.05 + bodyPitch.x, bodyYaw.x + spinS.x,
       Math.sin(t * 1.1) * 0.02 + (mood === "talking" ? head.z.x * 0.2 : 0)
-      - peekS.x + Math.sin(walkPh) * 0.06 * walkK.x); // leaning in to peek (top toward the middle); waddling
+      - 0.55 * peekLean + gaitSway * 0.6, "YXZ"); // leaning out to peek (top toward the middle); a slight waddle
+    // hips shifting over the planted foot, along the body's own sideways axis
+    body.position.set(gaitSway * Math.cos(bodyYaw.x), 0, -gaitSway * Math.sin(bodyYaw.x));
     const sq = THREE.MathUtils.clamp(squash.x, 0.75, 1.3);
     body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     root.position.y = y;
