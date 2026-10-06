@@ -222,6 +222,16 @@ class ChatTest extends TestCase
         });
     }
 
+    public function test_the_prompt_says_what_day_it_is_in_new_york(): void
+    {
+        Http::fake(['*' => Http::response($this->sse([['content' => 'ok']]))]);
+        $this->travelTo('2026-10-07 02:00:00'); // UTC, still the 6th in New York
+
+        $this->ask('che giorno è oggi')->streamedContent();
+
+        Http::assertSent(fn (Request $r) => str_contains($r['messages'][0]['content'], 'Today is Tuesday, 6 October 2026'));
+    }
+
     public function test_someone_elses_chat_cannot_be_read_or_added_to(): void
     {
         Http::fake();

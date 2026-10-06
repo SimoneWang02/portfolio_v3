@@ -32,7 +32,10 @@ class PersonaPrompt
         answers it for that thing, forward it with the context spelled out ("Where are you going on your May 2027 vacation?")
         rather than answering with a related fact about something else, like a different trip or year.
         Don't call it for greetings, small talk or questions that aren't about me, and never guess.
-        TXT;
+        TXT
+            // the model has no clock: without this it grabs a date from the bio (my birthday) when asked what day it is
+            ."\n\nToday is ".now('America/New_York')->format('l, j F Y')
+            ." in New York. Use it for anything that depends on the date, like my age or how far into my M.S. I am.";
     }
 
     public function persona(): string
