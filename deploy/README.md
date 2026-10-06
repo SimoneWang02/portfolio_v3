@@ -7,15 +7,14 @@ One small VPS runs everything:
 
 ## 1. Server (once)
 
-1. **Create the server.** In Hetzner Cloud, create a **CX22** (or bigger) running **Ubuntu 26.04**. It needs PHP 8.4+, and 26.04 ships 8.5. Add your SSH key and enable *Backups*.
+1. **Create the server.** In Hetzner Cloud, create a **CX23** (or a **CPX12** if CX isn't orderable) in Falkenstein or Nuremberg, running **Ubuntu 26.04**. It needs PHP 8.4+, and 26.04 ships 8.5. Add your SSH key and enable *Backups*; no volume is needed.
 2. **DNS.** Point your domain's A/AAAA records at the server.
 3. **Packages, firewall and a deploy user.** As root:
 
    ```sh
    apt update && apt upgrade -y
-   apt install -y nginx git unzip sqlite3 certbot python3-certbot-nginx unattended-upgrades \
-     php-fpm php-cli php-sqlite3 php-mbstring php-xml php-curl php-intl php-zip php-bcmath composer
-   curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && apt install -y nodejs
+   apt install -y nginx git unzip sqlite3 certbot python3-certbot-nginx unattended-upgrades ufw \
+     php-fpm php-cli php-sqlite3 php-mbstring php-xml php-curl php-intl php-zip php-bcmath composer nodejs npm
 
    ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw enable
 
@@ -26,7 +25,12 @@ One small VPS runs everything:
    mkdir -p /var/www/portfolio /var/backups/portfolio && chown deploy:www-data /var/www/portfolio /var/backups/portfolio
    ```
 
-4. **Turn off root and password SSH logins.** In `/etc/ssh/sshd_config`, set `PermitRootLogin no` and `PasswordAuthentication no`, then run `systemctl reload ssh`.
+4. **Key-only SSH.** Turn off password logins; root can still log in, but only with your key:
+
+   ```sh
+   printf "PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n" > /etc/ssh/sshd_config.d/10-hardening.conf
+   sshd -t && systemctl reload ssh
+   ```
 5. **PHP-FPM.** In `/etc/php/8.5/fpm/pool.d/www.conf`, set `pm.max_children = 10`. Each chat reply keeps one worker busy for 5–15 seconds while it streams.
 
 ## 2. App (once)
