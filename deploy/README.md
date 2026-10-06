@@ -94,3 +94,16 @@ ssh deploy@example.com /var/www/portfolio/deploy/deploy.sh
 - `curl -N https://example.com/api/chat -H 'Content-Type: application/json' -d '{"conversationId":"<uuid>","messages":[{"role":"user","content":"hi"}]}'` should print the reply gradually, not all at the end.
 - `/`, `/experience` and `/admin` all load. `/admin` asks you to log in.
 - After the first night, `ls /var/backups/portfolio` shows a `db-YYYY-MM-DD.sqlite` file.
+
+## Cloudflare (optional, faster for US visitors)
+
+Cloudflare's free plan caches the static files at its edge (New York for US visitors) and proxies the chat and `/admin` to the server.
+
+1. **Trust Cloudflare's real-IP header** before switching. Otherwise every visitor looks like a Cloudflare address and shares one rate limit. As root, run `deploy/cloudflare-realip.sh`. Re-run it if Cloudflare ever changes its IP ranges.
+2. **Add the site in Cloudflare (Free plan).**
+   - Import the DNS records and make sure the apex and `www` A records are **proxied** (orange cloud).
+   - Allow the Search and Agent bots.
+3. **Switch nameservers.** At Porkbun, replace the domain's **Authoritative Nameservers** with Cloudflare's two.
+4. **Cloudflare settings:**
+   - **SSL/TLS → Full (strict)**: the server keeps its Let's Encrypt certificate, which certbot still renews.
+   - **Caching → Cache Rules**: cache `*.glb` (the chibi model), which Cloudflare doesn't cache by default.
