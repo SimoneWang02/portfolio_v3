@@ -363,9 +363,9 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   const armL = { out: 0.3, fwd: 0, bend: 0.2, curl: 0, twist: 0 }, armR = { ...armL };
   const armLv = { out: 0, fwd: 0, bend: 0, curl: 0, twist: 0 }, armRv = { ...armLv };
 
-  // idle fidgets, a few seconds after the visitor goes still: glance around, bounce, tilt the head, stretch
+  // idle fidgets, a few seconds after the visitor goes still: glance around, tilt the head
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const FIDGET_LEN = { look: 2.4, bounce: 1.2, tilt: 1.8, stretch: 2.2 };
+  const FIDGET_LEN = { look: 2.4, tilt: 1.8 };
   let fidget = null, fidgetT = 0, fidgetSide = 1, nextFidget = 8;
   // dozing off after a longer quiet spell: eyes drift shut, head droops, breathing slows, z's float up
   const SLEEP_AFTER = 30;
@@ -452,7 +452,6 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
   function grin(sec) { grinUntil = Math.max(grinUntil, clock.elapsedTime + sec); }
   function startFidget(name) {
     fidget = name; fidgetT = 0; fidgetSide = Math.random() < 0.5 ? -1 : 1;
-    if (name === "bounce") { hop(0.4); nextHop = 0.4; grin(1.2); }
     if (name === "tilt") nudge(0.6);
   }
   // any sign of the visitor: wake up (with a start) and hold off fidgeting for a bit
@@ -576,17 +575,15 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       fidgetT += dt;
       if (fidgetT > FIDGET_LEN[fidget] || mood !== "idle" || asleep) fidget = null;
     } else if (!reduceMotion && mood === "idle" && !busy && !asleep && t >= nextFidget) {
-      startFidget(["look", "bounce", "tilt", "stretch"][Math.floor(Math.random() * 4)]);
+      startFidget(Math.random() < 0.5 ? "look" : "tilt");
       nextFidget = t + 7 + Math.random() * 8;
     }
-    // stretch fidget: arms up overhead with a yawn and eyes shut (0 .. 1 .. 0, back to rest 0.5 s before the end)
-    const stretchK = fidget === "stretch" ? Math.max(0, Math.min(1, fidgetT / 0.35, (FIDGET_LEN.stretch - 0.5 - fidgetT) / 0.35)) : 0;
 
     // breathing: a bob and a gentle stretch on the same cycle (the body stretches just ahead of rising)
     breathPh += dt * lerp(2.2, 1.3, sleepK);
     const breath = Math.sin(breathPh);
     let y = Math.sin(breathPh - 0.7) * 0.018 * (1 - sleepK);
-    let sqTarget = 1 + breath * 0.013 * (1 + sleepK) + stretchK * 0.04, sqFreq = 3.2, sqZeta = 0.3;
+    let sqTarget = 1 + breath * 0.013 * (1 + sleepK), sqFreq = 3.2, sqZeta = 0.3;
 
     // hop: crouch, launch, fly, land
     if (hopPhase === 1) {
@@ -659,14 +656,14 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       }
     }
     // thinking: eyes half-lidded while pondering
-    faceU.uBlink.value = debugFace?.blink ?? Math.max(blink, mood === "thinking" ? 0.3 : 0, sleepK, stretchK > 0.6 ? 1 : 0);
+    faceU.uBlink.value = debugFace?.blink ?? Math.max(blink, mood === "thinking" ? 0.3 : 0, sleepK);
     grinK = lerp(grinK, t < grinUntil ? (mood === "idle" ? 1 : mood === "talking" ? 0.6 : 0) : 0, 1 - Math.exp(-dt * 12));
     faceU.uHappy.value = debugFace?.happy ?? grinK * (1 - sleepK);
     // flatten the eyes as far as the lids are shut (happy eyes are fully shut from uHappy 0.35; see face.js)
     if (eyesShut) eyesShut.influences[eyesShut.index] = debugFace?.morph ?? Math.max(faceU.uBlink.value, THREE.MathUtils.smoothstep(faceU.uHappy.value, 0, 0.35));
 
-    // mouth: lip sync to the letter being "said"; a yawn during the stretch fidget
-    let target = stretchK * 0.8;
+    // mouth: lip sync to the letter being "said"
+    let target = 0;
     if (speechPos < speech.length) {
       const i0 = Math.floor(speechPos), ch = speech[i0];
       speechPos += dt * paceFor(speech.length - speechPos) / durationOf(ch);
@@ -706,7 +703,6 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       if (fidget === "look") {          // glance one way, then the other, then back
         if (fidgetT < 1.1) { ty = fidgetSide * 0.7; tp = -0.1; } else if (fidgetT < 1.9) { ty = -fidgetSide * 0.45; tp = 0.05; }
       } else if (fidget === "tilt") { tr = fidgetSide * 0.32; tp = -0.08; }
-      else if (stretchK > 0) tp = -0.3;
       tp = lerp(tp, 0.42, sleepK); ty *= 1 - sleepK; tr = lerp(tr, 0.12, sleepK); // chin on the chest
     }
     if (enter) { tp = enter.t < PEEK_OUT ? 0.05 : -0.05; ty = -enterYaw * 0.6; tr = enter.t < PEEK_OUT ? 0.25 * peekS.x : 0; }
@@ -725,8 +721,6 @@ export function createChibi(container, { mini = false, onProgress, onLoaded, onE
       const tap = tapT >= 0 ? Math.sin(tapT * 28) * 0.12 * Math.sin(Math.PI * tapT / 0.7) : 0;
       tl = { out: -0.15, fwd: 0.75, bend: 2.3 + tap };                // hand up at the chin (tapping it)
       tr2 = { out: 0.15, fwd: 0.25, bend: 0.9 };                      // other arm relaxed, a little bent
-    } else if (stretchK > 0) {
-      tl = tr2 = { out: 2.45, fwd: 0.3, bend: 0.35 };                 // reach up overhead
     } else if (sleepK > 0.5) {
       tl = tr2 = { out: 0.14, fwd: 0.1, bend: 0.15 };                 // arms hang limp
     }
