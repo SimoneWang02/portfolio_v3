@@ -91,7 +91,7 @@ ssh deploy@example.com /var/www/portfolio/deploy/deploy.sh
 
 ## Checks
 
-- `curl -N https://example.com/api/chat -H 'Content-Type: application/json' -d '{"conversationId":"<uuid>","messages":[{"role":"user","content":"hi"}]}'` should print the reply gradually, not all at the end.
+- `curl -N https://example.com/api/chat -H 'Content-Type: application/json' -d '{"conversationId":"<uuid>","message":"hi"}'` should print the reply gradually, not all at the end.
 - `/`, `/experience` and `/admin` all load. `/admin` asks you to log in.
 - After the first night, `ls /var/backups/portfolio` shows a `db-YYYY-MM-DD.sqlite` file.
 

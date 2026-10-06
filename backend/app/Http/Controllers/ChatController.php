@@ -15,13 +15,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 // POST /api/chat: logs the visitor's message, streams the chibi's reply as plain text,
+// with the chat so far rebuilt from the log (never taken from the browser, so nobody can put words in the chibi's mouth),
 // and records questions the AI couldn't answer for the admin dashboard.
 // Preset chip questions are answered once per version of the prompt and replayed from the cache.
 class ChatController extends Controller
 {
     private const MAX_HISTORY = 12;
     private const MAX_CHARS = 1000;
-    private const MAX_HISTORY_CHARS = 6000; // the browser sends the history, so a script could pad it to run up the bill
+    private const MAX_HISTORY_CHARS = 6000; // keeps long chats from running up the bill
     private const PER_MINUTE = 6;
     private const PER_DAY = 60;
     private const SITE_PER_DAY = 1500; // circuit breaker across all visitors, caps a bad day's DeepSeek spend
@@ -52,27 +53,11 @@ class ChatController extends Controller
     {
         $data = $request->validate([
             'conversationId' => ['required', 'uuid'],
-            'messages' => ['required', 'array'],
-            'messages.*' => ['array'],
-            'messages.*.role' => ['nullable', 'string'],
-            'messages.*.content' => ['nullable', 'string'],
+            'message' => ['required', 'string'],
             'preset' => ['sometimes', 'boolean'],
         ]);
-        $budget = self::MAX_HISTORY_CHARS;
-        $history = collect($data['messages'])
-            ->slice(-self::MAX_HISTORY)
-            ->filter(fn ($m) => in_array($m['role'] ?? null, ['user', 'assistant'], true))
-            ->map(fn ($m) => ['role' => $m['role'], 'content' => mb_substr((string) ($m['content'] ?? ''), 0, self::MAX_CHARS)])
-            ->reverse() // keep the newest messages that fit the budget
-            ->takeWhile(function ($m) use (&$budget) {
-                $budget -= mb_strlen($m['content']);
-
-                return $budget >= 0;
-            })
-            ->reverse()
-            ->values()
-            ->all();
-        abort_if(! $history || end($history)['role'] !== 'user', 422, 'The last message must be from the visitor.');
+        $text = mb_substr(trim($data['message']), 0, self::MAX_CHARS);
+        abort_if($text === '', 422, 'The message is empty.');
         abort_unless(config('services.deepseek.key'), 500, 'DEEPSEEK_API_KEY not set');
 
         $ipHash = hash_hmac('sha256', (string) $request->ip(), config('services.chat.ip_salt'));
@@ -89,7 +74,8 @@ class ChatController extends Controller
             ['id' => $data['conversationId']],
             ['ip_hash' => $ipHash, 'user_agent' => mb_substr((string) $request->userAgent(), 0, 255)],
         );
-        $asked = $this->log($conversation, 'user', end($history)['content']);
+        $asked = $this->log($conversation, 'user', $text);
+        $history = $this->history($conversation);
 
         $system = $persona->build();
         $preset = (bool) ($data['preset'] ?? false);
@@ -151,6 +137,23 @@ class ChatController extends Controller
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no', // nginx would otherwise hold the stream until the end
         ]);
+    }
+
+    // The newest logged messages that fit the budget, oldest first; the last one is the message just logged.
+    private function history(Conversation $conversation): array
+    {
+        $budget = self::MAX_HISTORY_CHARS;
+
+        return $conversation->messages()->reorder('id', 'desc')->limit(self::MAX_HISTORY)->get(['role', 'content'])
+            ->map(fn (Message $m) => ['role' => $m->role, 'content' => mb_substr($m->content, 0, self::MAX_CHARS)])
+            ->takeWhile(function ($m) use (&$budget) {
+                $budget -= mb_strlen($m['content']);
+
+                return $budget >= 0;
+            })
+            ->reverse()
+            ->values()
+            ->all();
     }
 
     private function log(Conversation $conversation, string $role, string $content): Message

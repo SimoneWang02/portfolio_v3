@@ -7,7 +7,7 @@ const OOPS_MARK = "\x1e"; // the server ends a failed reply with this plus "cred
 export function useChat(chibiRef) {
   const [messages, setMessages] = useState([]);
   const [busy, setBusy] = useState(false);
-  const history = useRef([]); // source of truth for what we send; `messages` mirrors it for rendering
+  const history = useRef([]); // the chat as shown; the server keeps its own copy, so only the new question is sent
   const conversationId = useRef(crypto.randomUUID()); // one logged conversation per page load
 
   // `preset`: a chip question, which the server answers from its cache
@@ -31,7 +31,7 @@ export function useChat(chibiRef) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: conversationId.current, messages: history.current, preset }),
+        body: JSON.stringify({ conversationId: conversationId.current, message: q, preset }),
       });
       if (res.status === 429 || res.status === 503) throw Object.assign(new Error(`HTTP ${res.status}`), { oops: res.status === 429 ? "slow" : "resting" });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
