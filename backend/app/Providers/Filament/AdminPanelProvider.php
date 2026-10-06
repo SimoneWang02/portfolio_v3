@@ -27,6 +27,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->profile() // change name/email/password from the user menu
             ->brandName('Chibi admin')
             ->colors([
                 'primary' => Color::Violet,
