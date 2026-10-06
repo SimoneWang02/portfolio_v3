@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "optimize-model": "node scripts/eye-morph.mjs models-src/chibi-rigged-source.glb .cache/chibi-eyes.glb && gltf-transform optimize .cache/chibi-eyes.glb public/chibi-rigged.glb --simplify false --texture-compress webp --texture-size 2048 --compress meshopt"
+    "optimize-model": "node scripts/eye-morph.mjs models-src/chibi-rigged-source.glb .cache/chibi-eyes.glb && node scripts/cuff-weights.mjs .cache/chibi-eyes.glb .cache/chibi-cuffs.glb && gltf-transform optimize .cache/chibi-cuffs.glb public/chibi-rigged.glb --simplify false --texture-compress webp --texture-size 2048 --compress meshopt"
   },
   "dependencies": {
     "react": "^19.3.0",

@@ -201,14 +201,25 @@ const GESTURES = {
 const TALK_GESTURES = ["explainL", "explainR", "open", "present", "rest"];
 
 // turn the wrist so the palm faces `palmDir` with the fingers pointing up (model space), blended by `w`;
-// `tilt` leans the fingers outward (+) / inward (-)
-const _q4 = new THREE.Quaternion(), _up = new THREE.Vector3();
+// `tilt` leans the fingers outward (+) / inward (-). Most of the turn's roll about the forearm goes to the
+// forearm (FORE_ROLL): twisted at the wrist alone, the skin there wrings thin (the cuffs are pinned to the
+// forearm, see scripts/cuff-weights.mjs), while the round sleeve hides the roll.
+const FORE_ROLL = 0.75;
+const _q4 = new THREE.Quaternion(), _q5 = new THREE.Quaternion(), _up = new THREE.Vector3(), _axis = new THREE.Vector3();
 function aimPalm(model, a, palmDir, w, tilt = 0) {
   _up.set(a.sign * (0.25 + tilt), 1, 0);                                // fingers up, a little outward
   handFrame(_up, palmDir, _q3).multiply(a.palmRestInv).multiply(a.handRest); // wanted, model space
-  model.getWorldQuaternion(_q4).invert().multiply(a.fore.bone.getWorldQuaternion(_q2)); // forearm, model space
-  _q4.invert().multiply(_q3);                                           // -> hand's local rotation
-  a.hand.bone.quaternion.copy(a.hand.rest).slerp(_q4, w);
+  model.getWorldQuaternion(_q5).invert().multiply(a.fore.bone.getWorldQuaternion(_q2)); // forearm, model space
+  _q5.invert().multiply(_q3);                                           // -> hand's local rotation
+  _q4.copy(a.hand.rest).slerp(_q5, w);
+  // swing-twist: the twist part of the turn (hand rest -> wanted, in the forearm's frame) about the forearm
+  _q3.copy(a.hand.rest).invert().premultiply(_q4);
+  _axis.copy(a.hand.bone.position).normalize();                         // forearm axis, in its own frame
+  const d = _q3.x * _axis.x + _q3.y * _axis.y + _q3.z * _axis.z;
+  _q3.set(_axis.x * d, _axis.y * d, _axis.z * d, _q3.w).normalize();
+  _q3.slerp(_q2.identity(), 1 - FORE_ROLL);
+  a.fore.bone.quaternion.multiply(_q3);                                 // roll the forearm about its axis...
+  a.hand.bone.quaternion.copy(_q3.invert()).multiply(_q4);              // ...and take it back out of the wrist
 }
 
 const GRAVITY = 16, HOP_H = 0.35;  // a full-power hop: 0.35 units high, ~0.4 s in the air
