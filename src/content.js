@@ -44,7 +44,7 @@ export const OOPS = {
   ],
 };
 export const LINKS = {
-  linkedin: "https://www.linkedin.com/in/simone-wang-b7024a256",
+  linkedin: "https://www.linkedin.com/in/simonewang",
   github: "https://github.com/SimoneWang02",
   handshake: "https://app.joinhandshake.com/profiles/tzpw2v",
   email: "mailto:simone.wang2002@gmail.com",
