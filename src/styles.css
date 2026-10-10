@@ -444,7 +444,7 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 }
 .tl-head h2 { margin: 2px 0; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 
-/* role progression (Intern, Junior, ...) */
+/* employment progression (Contract, Full-time) */
 .ladder { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
 .ladder li {
   position: relative; padding: 3px 12px; border-radius: 999px; font-size: .85rem; font-weight: 500;

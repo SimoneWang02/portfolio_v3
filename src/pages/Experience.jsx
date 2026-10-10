@@ -47,7 +47,7 @@ export default function Experience() {
               <h2>{e.title}</h2>
               {e.about.map((line) => <p key={line} className="tl-about">{line}</p>)}
               {e.ladder && (
-                <ol className="ladder" aria-label="Role progression">
+                <ol className="ladder" aria-label="Employment progression">
                   {e.ladder.map((r) => <li key={r}>{r}</li>)}
                 </ol>
               )}

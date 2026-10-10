@@ -29,7 +29,7 @@ What I'm looking for
 - I can start in June 2027 (I'm taking a vacation in mid May 2027). Happy to relocate or work remotely.
 
 Work
-- Nov 2022 - May 2026 at Bonobo Srl, a software consulting startup in Modena that builds management software for businesses. I grew from intern to junior to senior developer and worked on 7 client projects in insurance, packaging, social care, sports and education, owning them end to end, from client meetings to production deploys.
+- Nov 2022 - May 2026 at Bonobo Srl, a software consulting startup in Modena that builds management software for businesses. I started on a part-time contract (about 24 hours a week) alongside my degree, was hired full-time in January 2025, and worked on 7 client projects in insurance, packaging, social care, sports and education, owning them end to end, from client meetings to production deploys.
 - Bonobo projects:
   - StartClaims (Angular + Laravel), an insurance claims platform for Peritek that 500+ adjusters use daily for about 23,000 claims a year. Primary developer from 2025, onsite weekly with the owners. Automated claim intake from 7 insurers (Generali, Unipol, Allianz, Reale, Groupama, ITAS, Zurich), cut the main dashboard's load time from 16 seconds to about 50 milliseconds, built a Digital Desk, an appraisal report builder and a GIS claims map on Google Maps.
   - DOCpack (React + NestJS + TypeScript), a platform for packaging design teams: built most of the core features and a client proposal review tool on the Adobe PDF Embed API, then supervised a junior developer.

@@ -68,8 +68,8 @@ export const EXPERIENCE = [
     title: "Bonobo Srl",
     about: ["Software Consulting Startup", "Modena, Italy"],
     dates: "Nov 2022 – May 2026",
-    ladder: ["Intern", "Junior", "Senior"],
-    growth: "Started as an intern and grew into owning client projects end-to-end, from client meetings to production deploys, building management software across 7 client projects in insurance, packaging, social care, sports, and education.",
+    ladder: ["Contract", "Full-time"],
+    growth: "Started on a part-time contract alongside my degree, was hired full-time in January 2025, and grew into owning client projects end-to-end, from client meetings to production deploys, building management software across 7 client projects in insurance, packaging, social care, sports, and education.",
     projects: [
       {
         name: "StartClaims",

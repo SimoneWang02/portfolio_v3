@@ -102,7 +102,7 @@ return [
         'history' => ['Have you ever been to Japan?', 'Yes, once, in May 2025, and it was the best days of my life. I did the classic route: Osaka, Kyoto, Nara, Kobe, then Tokyo.'],
         'ask' => 'which city did you like most?', 'forwarded_match' => '/Japan|city|cities|Osaka|Kyoto|Tokyo/i'],
     ['id' => 'followup.bonobo-how-long', 'forward' => false,
-        'history' => ['Where did you work before NYU?', 'At Bonobo, a software consulting startup in Modena that builds management software for businesses. I grew from intern to senior developer there.'],
+        'history' => ['Where did you work before NYU?', 'At Bonobo, a software consulting startup in Modena that builds management software for businesses. I started there on a part-time contract and was hired full-time in January 2025.'],
         'ask' => 'for how long?', 'judge' => 'Says about three and a half years, or from November 2022 to May 2026 (either the duration or the dates is enough). Any other duration fails.'],
     ['id' => 'followup.startclaims-how', 'forward' => true,
         'history' => ["What's the coolest thing you've optimised?", "On StartClaims, an insurance claims platform, I cut the main dashboard's load time from 16 seconds to about 50 milliseconds."],
